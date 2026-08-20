@@ -3,3 +3,14 @@
 #   idf.py -B build-7b -D SDKCONFIG_DEFAULTS='sdkconfig.defaults;sdkconfig.board.7b' \
 #     -D SDKCONFIG=build-7b/sdkconfig build
 CONFIG_CANFLIGHT_BOARD_WAVESHARE_7B=y
+
+# The hand-tuned display stability set from the August 2026 jitter hunt.
+# These lived only in the standalone sdkconfig.7b and were silently lost
+# when 0.4.5 built from this fragment - the shake came straight back
+# (PSRAM at 80 MHz cannot feed the 1024x600 panel and the app at once).
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+CONFIG_ESPTOOLPY_FLASHFREQ_120M=y
+CONFIG_SPIRAM_SPEED_120M=y
+CONFIG_GDMA_ISR_IRAM_SAFE=y
+CONFIG_LCD_RGB_RESTART_IN_VSYNC=y
+CONFIG_EXAMPLE_LCD_RGB_BOUNCE_BUFFER_HEIGHT=15
