@@ -164,16 +164,19 @@ __attribute__((unused)) static const board_cfg_t k_pandatouch = {
 __attribute__((unused)) static const board_cfg_t k_sunton_8070 = {
     /* Sunton ESP32-8048S070 (7" 800x480, ST7262) and its unbranded
      * Amazon/AliExpress clones. NOT Guition-compatible: DE and VSYNC are
-     * swapped and the data bus is wired in the opposite order, so the
-     * Guition build shows garbage on this glass. Pin map and timings
-     * from rzeldent/esp32-smartdisplay (working devices). Note the slow
+     * swapped versus the Guition, so that build shows garbage here.
+     * Timings from rzeldent/esp32-smartdisplay; its data map however had
+     * the R and B halves swapped - hardware-confirmed by an owner
+     * (2026-08: red rendered blue until the halves were flipped). The
+     * corrected bus is byte-for-byte the CrowPanel 7.0 wiring; only the
+     * PCLK pin (42 vs GPIO0) and the panel timings differ. Note the slow
      * 12.5 MHz pclk and the unusual 210-pixel HSYNC front porch - both
      * are what the 7" panel actually wants. */
     .name = "Sunton ESP32-8048S070 (7in 800x480)",
     .de = 41, .vsync = 40, .hsync = 39, .pclk = 42,
-    .data = { 14, 21, 47, 48, 45,       /* B0..B4 */
+    .data = { 15, 7, 6, 5, 4,           /* B0..B4 */
               9, 46, 3, 8, 16, 1,       /* G0..G5 */
-              15, 7, 6, 5, 4 },         /* R0..R4 */
+              14, 21, 47, 48, 45 },     /* R0..R4 */
     .i2c_sda = 19, .i2c_scl = 20,
     .has_ch422g = false,
     .bl_gpio = 2,
