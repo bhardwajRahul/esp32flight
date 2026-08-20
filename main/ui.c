@@ -2437,9 +2437,19 @@ static void render_ambient(void)
         return;
     }
     /* tile fetch failed or was partial (offline blip): retry every 20 s
-     * until the view is complete */
-    if ((!s_amb_view_ok || s_amb_missing > 0) && !s_amb_busy && s_home_ok &&
-        esp_timer_get_time() / 1000 - s_amb_last_try > 20000) {
+     * until the view is complete. With the rain overlay on, a complete
+     * view also recomposes every 10 minutes (the retro scope's cadence):
+     * the radar frame is baked into the tiles, so without this the
+     * screensaver kept the weather from whenever it was opened, frozen
+     * all night (#21). Base tiles come from the flash cache and
+     * TM_NO_FLOOD morphs the visible frame, so the refresh is cheap
+     * and easy on the eyes. */
+    int64_t now_ms = esp_timer_get_time() / 1000;
+    bool rain_stale = settings_get()->rain_overlay && s_amb_view_ok &&
+                      s_amb_missing == 0 &&
+                      now_ms - s_amb_last_try > 10 * 60 * 1000;
+    if ((!s_amb_view_ok || s_amb_missing > 0 || rain_stale) &&
+        !s_amb_busy && s_home_ok && now_ms - s_amb_last_try > 20000) {
         amb_spawn_tiles();
     }
     /* observation circle: everything outside it is simply not queried */
