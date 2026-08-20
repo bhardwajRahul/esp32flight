@@ -181,7 +181,10 @@ __attribute__((unused)) static const board_cfg_t k_sunton_8070 = {
     .has_ch422g = false,
     .bl_gpio = 2,
     .tp_rst_gpio = 38,
-    .hs_pulse = 30, .hs_bp = 16, .hs_fp = 210,
+    /* Horizontal porches re-balanced by the same owner (16/210 -> 46/180,
+     * total unchanged): centers the display window, which sat shifted
+     * ~30 px with the smartdisplay values. */
+    .hs_pulse = 30, .hs_bp = 46, .hs_fp = 180,
     .vs_pulse = 13, .vs_bp = 10, .vs_fp = 22,
     .pclk_hz = 12500000,
     .tp_mirror = false,
