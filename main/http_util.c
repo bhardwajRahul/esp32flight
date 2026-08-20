@@ -62,7 +62,7 @@ static esp_err_t get_with_hdr_t(const char *url, char *buf, size_t buf_size, siz
         .timeout_ms = timeout_ms,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .disable_auto_redirect = false,
-        .user_agent = "canflight-esp32/1.0",
+        .user_agent = "esp32flight/0.4 (+https://github.com/theqkash/esp32flight)",
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL) {
@@ -114,7 +114,7 @@ esp_err_t http_post_to_buffer_t(const char *url, const char *body,
         .user_data = &sink,
         .timeout_ms = timeout_ms,
         .crt_bundle_attach = esp_crt_bundle_attach,
-        .user_agent = "esp32flight/1.0",
+        .user_agent = "esp32flight/0.4 (+https://github.com/theqkash/esp32flight)",
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL) {
@@ -146,7 +146,7 @@ esp_err_t http_post_text(const char *url, const char *body,
         .method = HTTP_METHOD_POST,
         .timeout_ms = 10000,
         .crt_bundle_attach = esp_crt_bundle_attach,
-        .user_agent = "esp32flight/1.0",
+        .user_agent = "esp32flight/0.4 (+https://github.com/theqkash/esp32flight)",
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL) {
@@ -198,7 +198,7 @@ retry_fresh:
             .crt_bundle_attach = esp_crt_bundle_attach,
             .disable_auto_redirect = false,
             .keep_alive_enable = true,
-            .user_agent = "canflight-esp32/1.0",
+            .user_agent = "esp32flight/0.4 (+https://github.com/theqkash/esp32flight)",
         };
         s_ka_client[slot] = esp_http_client_init(&config);
         if (s_ka_client[slot] == NULL) {
