@@ -295,11 +295,15 @@ esp_err_t flight_fetch_nearby(double lat, double lon, int radius_nm, aircraft_li
                  esp_err_to_name(lerr));
     }
 
-    /* independent community aggregators, in preference order */
+    /* independent community aggregators, in preference order.
+     * airplanes.live moved last 2026-08: their public API now answers
+     * HTTP 403 for unregistered clients ("contact us" gate). Failover
+     * absorbed it, but as primary it cost a dead request every cycle.
+     * It stays on the list in case they approve us or reopen. */
     static const char *src_fmt[] = {
-        "https://api.airplanes.live/v2/point/%.4f/%.4f/%d",
         "https://api.adsb.lol/v2/point/%.4f/%.4f/%d",
         "https://opendata.adsb.fi/api/v2/lat/%.4f/lon/%.4f/dist/%d",
+        "https://api.airplanes.live/v2/point/%.4f/%.4f/%d",
     };
     /* The very first fetch skips the union request: it costs a full TLS
      * handshake and the boot screen is waiting. MLAT-only targets join
