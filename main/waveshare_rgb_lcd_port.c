@@ -597,8 +597,11 @@ esp_err_t waveshare_rgb_lcd_bl_on(void)
 esp_err_t waveshare_rgb_lcd_bl_off(void)
 {
     if (s_board->has_ch32v003) {
+        /* PWM 0 alone is fully dark. Do NOT drop helper output 2 here:
+         * a 7B owner reported the panel could not be woken by touch in
+         * night mode - cutting that line takes the touch controller down
+         * with the backlight, so the tap-to-wake path never fires. */
         ch32v003_backlight_pct(0);
-        ch32v003_output(2, 0);
         return ESP_OK;
     }
     if (!s_board->has_ch422g) {

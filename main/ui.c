@@ -2793,7 +2793,7 @@ static void idle_timer_cb(lv_timer_t *t)
         amb_show();
     }
 
-    if (cfg->night_enabled && s_amb != NULL) {
+    if (cfg->night_enabled) {
         time_t now = time(NULL);
         if (now > 1600000000) {
             time_t l = now + (tz_home_known() ? tz_home_offset() : 0);
@@ -2811,15 +2811,27 @@ static void idle_timer_cb(lv_timer_t *t)
                 }
             }
             bool night = a <= b ? (m >= a && m < b) : (m >= a || m < b);
-            if (night && !s_bl_off &&
+            if (night && !s_bl_off && s_amb != NULL &&
                 idle_ms > (uint32_t)(cfg->ambient_idle_min + 5) * 60000U) {
                 waveshare_rgb_lcd_bl_off();
                 s_bl_off = true;
             } else if (!night && s_bl_off) {
+                /* Morning restore must NOT require the screensaver to still
+                 * be up: a tap in the dark can close it invisibly, and the
+                 * old gate then kept the panel black past sunrise (7B
+                 * owner report) until a reboot. */
                 waveshare_rgb_lcd_bl_on();
                 s_bl_off = false;
             }
         }
+    }
+
+    /* Safety net alongside the screensaver's tap-to-wake: any recent input
+     * while dark relights the panel (this timer runs every 10 s), and so
+     * does disabling night mode from the web panel while dark. */
+    if (s_bl_off && (idle_ms < 11000U || !cfg->night_enabled)) {
+        waveshare_rgb_lcd_bl_on();
+        s_bl_off = false;
     }
 }
 
