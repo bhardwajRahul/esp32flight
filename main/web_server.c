@@ -236,6 +236,7 @@ static const char INDEX_HTML[] =
 "<div><label>aisstream.io API key</label><input id='c_ais_key'>"
 "<div class='help'>Free key at aisstream.io; powers the ship layer.</div></div>"
 "<div><label>Local ADS-B receiver (dump1090/readsb)</label><input id='c_local_adsb' placeholder='http://192.168.1.50:8080/data/aircraft.json'>"
+"<label>Use local receiver</label><select id='c_local_adsb_use'><option value='1'>on</option><option value='0'>off (internet sources)</option></select>"
 "<div class='help'>Reads aircraft straight from your antenna instead of internet APIs; falls back automatically.</div></div>"
 "</div></div>"
 "<div class='cfgcard'><h4>Backup</h4><div class='grid2'>"
@@ -461,6 +462,7 @@ static const char INDEX_HTML[] =
 "c.rain_overlay=document.getElementById('c_rain_overlay').value==='1';"
 "c.map_light=document.getElementById('c_map_light').value==='1';"
 "c.retro_map=document.getElementById('c_retro_map').value==='1';"
+"c.local_adsb_use=document.getElementById('c_local_adsb_use').value==='1';"
 "['taf','iss','sonde','ships','airspace'].forEach(k=>c[k+'_enabled']=document.getElementById('c_'+k+'_enabled').value==='1');"
 "['metric_units','metar_decoded','follow_mode'].forEach(k=>c[k]=document.getElementById('c_'+k).value==='1');"
 "c.favs=favs.map(f=>f&&f.name?f:{name:'',lat:0,lon:0});"
@@ -612,6 +614,7 @@ static esp_err_t config_get(httpd_req_t *req)
     cJSON_AddStringToObject(root, "watch_regs", c->watch_regs);
     cJSON_AddStringToObject(root, "webhook_url", c->webhook_url);
     cJSON_AddStringToObject(root, "local_adsb", c->local_adsb);
+    cJSON_AddBoolToObject(root, "local_adsb_use", c->local_adsb_use);
     cJSON_AddBoolToObject(root, "web_pass_set", c->web_pass[0] != '\0');
     cJSON_AddBoolToObject(root, "cpa_alerts", c->cpa_alerts);
     cJSON_AddBoolToObject(root, "cpa_all", c->cpa_all);
@@ -676,6 +679,7 @@ static esp_err_t backup_get(httpd_req_t *req)
     cJSON_AddStringToObject(root, "watch_regs", c->watch_regs);
     cJSON_AddStringToObject(root, "webhook_url", c->webhook_url);
     cJSON_AddStringToObject(root, "local_adsb", c->local_adsb);
+    cJSON_AddBoolToObject(root, "local_adsb_use", c->local_adsb_use);
     cJSON_AddStringToObject(root, "filter_airport", c->filter_airport);
     cJSON_AddStringToObject(root, "openaip_key", c->openaip_key);
     cJSON_AddStringToObject(root, "ais_key", c->ais_key);
@@ -761,6 +765,9 @@ static esp_err_t config_post(httpd_req_t *req)
     }
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "map_light")))) {
         c->map_light = cJSON_IsTrue(j);
+    }
+    if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "local_adsb_use")))) {
+        c->local_adsb_use = cJSON_IsTrue(j);
     }
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "retro_map")))) {
         c->retro_map = cJSON_IsTrue(j);

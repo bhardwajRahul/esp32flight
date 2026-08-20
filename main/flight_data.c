@@ -134,19 +134,28 @@ static void parse_aircraft(const cJSON *jac, aircraft_t *ac)
     }
 
     j = cJSON_GetObjectItem(jac, "alt_baro");
+    if (j == NULL) {
+        /* Old dump1090-mutability schema (FR24/PiAware feeder bundles):
+         * "altitude"/"speed"/"vert_rate" instead of alt_baro/gs/baro_rate.
+         * Issue #17: a local FR24 receiver showed every flight as 0 ft
+         * 0 kt because only the new keys were read. */
+        j = cJSON_GetObjectItem(jac, "altitude");
+    }
     if (cJSON_IsNumber(j)) {
         ac->alt_baro_ft = (int)j->valuedouble;
     } else if (cJSON_IsString(j) && strcmp(j->valuestring, "ground") == 0) {
         ac->on_ground = true;
     }
 
-    if ((j = cJSON_GetObjectItem(jac, "gs")) && cJSON_IsNumber(j)) {
+    if (((j = cJSON_GetObjectItem(jac, "gs")) ||
+         (j = cJSON_GetObjectItem(jac, "speed"))) && cJSON_IsNumber(j)) {
         ac->gs_kts = (float)j->valuedouble;
     }
     if ((j = cJSON_GetObjectItem(jac, "track")) && cJSON_IsNumber(j)) {
         ac->track_deg = (float)j->valuedouble;
     }
-    if ((j = cJSON_GetObjectItem(jac, "baro_rate")) && cJSON_IsNumber(j)) {
+    if (((j = cJSON_GetObjectItem(jac, "baro_rate")) ||
+         (j = cJSON_GetObjectItem(jac, "vert_rate"))) && cJSON_IsNumber(j)) {
         ac->baro_rate_fpm = (int)j->valuedouble;
     }
     if ((j = cJSON_GetObjectItem(jac, "dst")) && cJSON_IsNumber(j)) {
@@ -279,9 +288,10 @@ esp_err_t flight_fetch_nearby(double lat, double lon, int radius_nm, aircraft_li
         return ESP_ERR_NO_MEM;
     }
 
-    /* LAN receiver first, when configured (dump1090/readsb aircraft.json) */
+    /* LAN receiver first, when configured and enabled (the switch lets
+     * owners flip to the internet view without wiping the URL, #17) */
     const char *local = settings_get()->local_adsb;
-    if (local[0] != '\0') {
+    if (local[0] != '\0' && settings_get()->local_adsb_use) {
         esp_err_t lerr = http_get_to_buffer(local, buf, FETCH_BUF_SIZE, NULL);
         if (lerr == ESP_OK) {
             lerr = parse_point_response(buf, lat, lon, out);

@@ -48,6 +48,7 @@ static lv_obj_t *s_ta_oaip, *s_ta_ais;
 static lv_obj_t *s_dd_units, *s_dd_metar, *s_sw_cycle, *s_sw_nauto;
 static lv_obj_t *s_dd_amb_style;
 static lv_obj_t *s_sw_map_light;
+static lv_obj_t *s_sw_ladsb;
 static lv_obj_t *s_sw_retro_map;
 static lv_obj_t *s_slider_radius, *s_radius_label;
 
@@ -338,6 +339,7 @@ static void save_cb(lv_event_t *e)
     strlcpy(cfg->fa_key, lv_textarea_get_text(s_ta_fa), sizeof(cfg->fa_key));
     strlcpy(cfg->webhook_url, lv_textarea_get_text(s_ta_webhook), sizeof(cfg->webhook_url));
     strlcpy(cfg->local_adsb, lv_textarea_get_text(s_ta_ladsb), sizeof(cfg->local_adsb));
+    cfg->local_adsb_use = lv_obj_has_state(s_sw_ladsb, LV_STATE_CHECKED);
 #ifndef APKFLIGHT   /* no web panel in the app - the field doesn't exist */
     strlcpy(cfg->web_pass, lv_textarea_get_text(s_ta_webpass), sizeof(cfg->web_pass));
 #endif
@@ -659,6 +661,7 @@ void ui_settings_open(void)
     add_hint(p, L()->hint_webhook, 380, 102, 360);
 
     add_section(p, L()->sec_datasrc, 154);
+    s_sw_ladsb = add_switch(p, L()->ladsb_use_lbl, 380, 148, cfg->local_adsb_use);
     add_label(p, L()->lbl_fa, 0, 186);
     s_ta_fa = add_textarea(p, 0, 210, 360, cfg->fa_key, false);
     add_hint(p, L()->hint_fa, 0, 256, 360);

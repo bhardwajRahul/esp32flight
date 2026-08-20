@@ -40,6 +40,7 @@ void settings_load(void)
     s_settings.show_classes = FCLS_ALL_MASK;
     s_settings.rain_overlay = false;
     s_settings.map_light = false;
+    s_settings.local_adsb_use = true;
     s_settings.retro_map = false;
     s_settings.amb_style = 0;
     s_settings.theme = 0;
@@ -133,6 +134,9 @@ void settings_load(void)
     get_str(h, "watch", s_settings.watch_regs, sizeof(s_settings.watch_regs));
     get_str(h, "webhook", s_settings.webhook_url, sizeof(s_settings.webhook_url));
     get_str(h, "ladsb", s_settings.local_adsb, sizeof(s_settings.local_adsb));
+    if (nvs_get_u8(h, "ladsb_use", &hide) == ESP_OK) {
+        s_settings.local_adsb_use = hide != 0;
+    }
     get_str(h, "webpass", s_settings.web_pass, sizeof(s_settings.web_pass));
     get_str(h, "fltapt", s_settings.filter_airport, sizeof(s_settings.filter_airport));
     int32_t alt = 0;
@@ -247,6 +251,7 @@ esp_err_t settings_save(void)
     nvs_set_str(h, "watch", s_settings.watch_regs);
     nvs_set_str(h, "webhook", s_settings.webhook_url);
     nvs_set_str(h, "ladsb", s_settings.local_adsb);
+    nvs_set_u8(h, "ladsb_use", s_settings.local_adsb_use ? 1 : 0);
     nvs_set_str(h, "webpass", s_settings.web_pass);
     nvs_set_str(h, "fltapt", s_settings.filter_airport);
     nvs_set_i32(h, "altmin", s_settings.alt_min_ft);
