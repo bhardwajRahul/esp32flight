@@ -862,9 +862,11 @@ static void flight_task(void *arg)
         if (primed && (last_weather_ms < 0 || now_ms - last_weather_ms > 15 * 60 * 1000)) {
             if (weather_fetch(lat, lon, &wx) == ESP_OK) {
                 char wbuf[96];
+                bool fahr = settings_get()->temp_f;
+                float temp = fahr ? wx.temp_c * 9.0f / 5.0f + 32.0f : wx.temp_c;
                 /* wind before the description so truncation trims words, not data */
-                snprintf(wbuf, sizeof(wbuf), "%s %.0f\xC2\xB0""C  \xEF\x9C\xAE %s %.0f  %s",
-                         weather_icon_str(wx.code), (double)wx.temp_c,
+                snprintf(wbuf, sizeof(wbuf), "%s %.0f\xC2\xB0%s  \xEF\x9C\xAE %s %.0f  %s",
+                         weather_icon_str(wx.code), (double)temp, fahr ? "F" : "C",
                          wx.wind_dir_deg >= 0 ? lang_compass(wx.wind_dir_deg) : "",
                          (double)wx.wind_kmh, lang_weather_desc(wx.code));
                 if (lvgl_port_lock(1000)) {

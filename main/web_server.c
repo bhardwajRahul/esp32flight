@@ -215,6 +215,7 @@ static const char INDEX_HTML[] =
 "<div><label>Theme</label><select id='c_theme'><option value='0'>Dark</option><option value='1'>Light</option><option value='2'>Black</option><option value='3'>Nord</option><option value='4'>Solarized</option><option value='5'>Purple</option><option value='6'>Forest</option></select></div>"
 "<div><label>Language</label><select id='c_lang'><option value='0'>English</option><option value='1'>Polski</option></select></div>"
 "<div><label>Units</label><select id='c_metric_units'><option value='0'>aviation (ft, kt)</option><option value='1'>metric (m, km/h)</option></select></div>"
+"<div><label>Temperature</label><select id='c_temp_f'><option value='0'>\u00b0C</option><option value='1'>\u00b0F</option></select></div>"
 "<div><label>METAR style</label><select id='c_metar_decoded'><option value='0'>raw</option><option value='1'>decoded</option></select></div>"
 "<div><label>Auto-cycle flights</label><select id='c_follow_mode'><option value='0'>on (default)</option><option value='1'>off, follow selection</option></select>"
 "<div class='help'>Off keeps the selected flight on screen until you pick another one.</div></div>"
@@ -353,9 +354,10 @@ static const char INDEX_HTML[] =
 ".addTo(layer).bindPopup(`<b>${sn.type||'sonde'} ${sn.serial}</b><br>${(sn.alt_m/1000).toFixed(1)} km ${sn.vel_v>=0?'\u2191':'\u2193'}`));"
 "(d.ships||[]).forEach(sh=>L.circleMarker([sh.lat,sh.lon],{radius:5,color:'#4fd1c5',weight:2,fillOpacity:.5})"
 ".addTo(layer).bindPopup(`<b>${sh.name||'ship'}</b><br>${sh.sog_kt.toFixed(1)} kt \u00B7 ${sh.cog}\u00B0`));}"
+"let tempF=false;"
 "async function load(){try{"
 "const r=await fetch('/api/state');const d=await r.json();metric=!!d.metric;lastd=d;"
-"let w=d.weather?` &nbsp;|&nbsp; ${d.weather.temp_c}\\u00B0C ${d.weather.desc}, wind ${d.weather.wind_kmh} km/h`:'';"
+"let w=d.weather?` &nbsp;|&nbsp; ${tempF?Math.round(d.weather.temp_c*9/5+32)+'\\u00B0F':d.weather.temp_c+'\\u00B0C'} ${d.weather.desc}, wind ${d.weather.wind_kmh} km/h`:'';"
 "const n=d.net||{};"
 "document.getElementById('hdr').innerHTML=`${d.city||''} (${(+d.lat).toFixed(3)}, ${(+d.lon).toFixed(3)}), radius ${d.radius_km} km${w}`+((d.stats&&d.stats.metar)?`<br><span style='font-family:ui-monospace,monospace;font-size:12px'>${d.stats.metar}${(d.stats.taf?`<br>${d.stats.taf}`:'')}</span>`:'');"
 "const s=d.stats||{};document.getElementById('cards').innerHTML="
@@ -436,6 +438,7 @@ static const char INDEX_HTML[] =
 "document.getElementById('bkstat').textContent=r.ok?'restored - device restarting':'restore failed';}"
 "catch(e){document.getElementById('bkstat').textContent='restore failed'}}"
 "async function loadCfg(){try{const r=await fetch('/api/config');const c=await r.json();"
+"tempF=c.temp_f===true;"
 "for(const k in c){const el=document.getElementById('c_'+k);if(!el)continue;"
 "if(el.tagName==='SELECT')el.value=(c[k]===true||c[k]===1||c[k]==='1')?1:( +c[k]||0);else el.value=c[k];}"
 "document.getElementById('c_theme').value=c.theme;document.getElementById('c_lang').value=c.lang;"
@@ -464,7 +467,7 @@ static const char INDEX_HTML[] =
 "c.retro_map=document.getElementById('c_retro_map').value==='1';"
 "c.local_adsb_use=document.getElementById('c_local_adsb_use').value==='1';"
 "['taf','iss','sonde','ships','airspace'].forEach(k=>c[k+'_enabled']=document.getElementById('c_'+k+'_enabled').value==='1');"
-"['metric_units','metar_decoded','follow_mode'].forEach(k=>c[k]=document.getElementById('c_'+k).value==='1');"
+"['metric_units','metar_decoded','follow_mode','temp_f'].forEach(k=>c[k]=document.getElementById('c_'+k).value==='1');"
 "c.favs=favs.map(f=>f&&f.name?f:{name:'',lat:0,lon:0});"
 "c.amb_style=+document.getElementById('c_amb_style').value;"
 "const num=v=>parseFloat(String(v).replace(',','.'));"
@@ -635,6 +638,7 @@ static esp_err_t config_get(httpd_req_t *req)
     cJSON_AddStringToObject(root, "openaip_key", c->openaip_key);
     cJSON_AddStringToObject(root, "ais_key", c->ais_key);
     cJSON_AddBoolToObject(root, "metric_units", c->metric_units);
+    cJSON_AddBoolToObject(root, "temp_f", c->temp_f);
     cJSON_AddBoolToObject(root, "metar_decoded", c->metar_decoded);
     cJSON_AddBoolToObject(root, "follow_mode", c->follow_mode);
     cJSON *jf = cJSON_AddArrayToObject(root, "favs");
@@ -711,6 +715,7 @@ static esp_err_t backup_get(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "ships_enabled", c->ships_enabled);
     cJSON_AddBoolToObject(root, "airspace_enabled", c->airspace_enabled);
     cJSON_AddBoolToObject(root, "metric_units", c->metric_units);
+    cJSON_AddBoolToObject(root, "temp_f", c->temp_f);
     cJSON_AddBoolToObject(root, "metar_decoded", c->metar_decoded);
     cJSON_AddBoolToObject(root, "follow_mode", c->follow_mode);
     cJSON *favs = cJSON_AddArrayToObject(root, "favs");
@@ -833,6 +838,9 @@ static esp_err_t config_post(httpd_req_t *req)
     set_str_field(root, "ais_key", c->ais_key, sizeof(c->ais_key));
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "metric_units")))) {
         c->metric_units = cJSON_IsTrue(j);
+    }
+    if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "temp_f")))) {
+        c->temp_f = cJSON_IsTrue(j);
     }
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "metar_decoded")))) {
         c->metar_decoded = cJSON_IsTrue(j);

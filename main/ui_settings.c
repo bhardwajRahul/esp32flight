@@ -329,7 +329,11 @@ static void save_cb(lv_event_t *e)
     cfg->amb_style = (uint8_t)lv_dropdown_get_selected(s_dd_amb_style);
     cfg->map_light = lv_obj_has_state(s_sw_map_light, LV_STATE_CHECKED);
     cfg->retro_map = lv_obj_has_state(s_sw_retro_map, LV_STATE_CHECKED);
-    cfg->metric_units = lv_dropdown_get_selected(s_dd_units) == 1;
+    {
+        int u = lv_dropdown_get_selected(s_dd_units);
+        cfg->metric_units = u == 2;
+        cfg->temp_f = u == 1;
+    }
     cfg->metar_decoded = lv_dropdown_get_selected(s_dd_metar) == 1;
     cfg->follow_mode = !lv_obj_has_state(s_sw_cycle, LV_STATE_CHECKED);
     cfg->night_auto = lv_obj_has_state(s_sw_nauto, LV_STATE_CHECKED);
@@ -696,7 +700,8 @@ void ui_settings_open(void)
     add_label(p, L()->units_lbl, 0, 112);
     s_dd_units = add_dropdown(p, 0, 136, 300, NULL);
     lv_dropdown_set_options(s_dd_units, L()->units_opts);
-    lv_dropdown_set_selected(s_dd_units, cfg->metric_units ? 1 : 0);
+    lv_dropdown_set_selected(s_dd_units,
+                             cfg->metric_units ? 2 : (cfg->temp_f ? 1 : 0));
     add_label(p, L()->metar_lbl, 380, 112);
     s_dd_metar = add_dropdown(p, 380, 136, 300, NULL);
     lv_dropdown_set_options(s_dd_metar, L()->metar_opts);
