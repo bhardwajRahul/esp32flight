@@ -1,0 +1,5 @@
+# Waveshare ESP32-S3-Touch-LCD-7C (BOX) pin selection - standard 16 MB class:
+#   idf.py -B build-7c \
+#     -D SDKCONFIG_DEFAULTS='sdkconfig.defaults;sdkconfig.board.7c' \
+#     -D SDKCONFIG=build-7c/sdkconfig build
+CONFIG_CANFLIGHT_BOARD_WAVESHARE_7C=y

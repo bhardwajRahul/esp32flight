@@ -154,6 +154,15 @@ menu "Example Configuration"
                     (EK9716BD3 driver, GT911, N4R8 = 4 MB flash). PCLK on
                     GPIO0 like the 5.0; pairs with the 4 MB class.
 
+            config CANFLIGHT_BOARD_WAVESHARE_7C
+                bool "Waveshare ESP32-S3-Touch-LCD-7C (7 inch BOX, 800x480)"
+                help
+                    The boxed 7C: classic-7 panel family with G5/G6 data
+                    moved to GPIO 9/8, I2C on 47/48 and the CH32V003-style
+                    IO helper known from the 7B (TP_RST + backlight PWM).
+                    ES8389 codec, battery, 32 MB flash / 16 MB PSRAM.
+                    Dedicated build - the moved I2C bus defeats autodetect.
+
             config CANFLIGHT_BOARD_PANDATOUCH
                 bool "BigTreeTech Panda Touch (5 inch, 800x480, battery)"
                 help

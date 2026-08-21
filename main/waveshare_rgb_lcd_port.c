@@ -76,6 +76,31 @@ __attribute__((unused)) static const board_cfg_t k_waveshare_7b = {
     .tp_mirror = false,
 };
 
+__attribute__((unused)) static const board_cfg_t k_waveshare_7c = {
+    /* The 7C "BOX": same 800x480 glass family as the classic 7, but the
+     * G5/G6 data lines moved to GPIO 9/8 and the I2C bus to 47/48 (the
+     * classic 7 uses 8/9 for I2C). The IO helper at 0x24 speaks the
+     * CH32V003 register protocol known from the 7B (0x03 outputs, 0x05
+     * backlight PWM), TP_RST is helper output 1 and touch INT is GPIO4,
+     * so the whole 7B helper flow applies. ES8389 codec, battery and
+     * 32 MB flash / 16 MB PSRAM on board (we use the standard 16 MB
+     * layout; the extra flash stays unused for now). Pins and timings
+     * verbatim from waveshareteam/ESP32-S3-Touch-LCD-7C 03_LCD. */
+    .name = "Waveshare ESP32-S3-Touch-LCD-7C (800x480)",
+    .de = 5, .vsync = 3, .hsync = 46, .pclk = 7,
+    .data = { 14, 38, 18, 17, 10,       /* B0..B4 */
+              39, 0, 45, 9, 8, 21,      /* G0..G5 (G5/G6 differ from the 7) */
+              1, 2, 42, 41, 40 },       /* R0..R4 */
+    .i2c_sda = 47, .i2c_scl = 48,
+    .has_ch422g = false,
+    .has_ch32v003 = true,
+    .bl_gpio = -1,
+    .tp_rst_gpio = -1,
+    .hs_pulse = 8, .hs_bp = 8, .hs_fp = 4,
+    .vs_pulse = 8, .vs_bp = 8, .vs_fp = 4,
+    .tp_mirror = false,
+};
+
 __attribute__((unused)) static const board_cfg_t k_guition = {
     .name = "Guition JC8048W550",
     .de = 40, .vsync = 41, .hsync = 39, .pclk = 42,
@@ -350,6 +375,12 @@ static void board_detect(void)
 #elif CONFIG_CANFLIGHT_BOARD_PANDATOUCH
     s_board = &k_pandatouch;
     i2c_master_init(s_board->i2c_sda, s_board->i2c_scl);
+#elif CONFIG_CANFLIGHT_BOARD_WAVESHARE_7C
+    s_board = &k_waveshare_7c;
+    i2c_master_init(s_board->i2c_sda, s_board->i2c_scl);
+    /* same helper protocol as the 7B: all pins to output, released */
+    ch32v003_reg_write(0x02, 0xFF);
+    ch32v003_reg_write(0x03, s_ch32_out);
 #elif CONFIG_CANFLIGHT_BOARD_SUNTON_4827S043
     s_board = &k_sunton_4827;
     i2c_master_init(s_board->i2c_sda, s_board->i2c_scl);
