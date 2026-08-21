@@ -3,3 +3,10 @@
 #     -D SDKCONFIG_DEFAULTS='sdkconfig.defaults;sdkconfig.board.pandatouch' \
 #     -D SDKCONFIG=build-pandatouch/sdkconfig build
 CONFIG_CANFLIGHT_BOARD_PANDATOUCH=y
+
+# BTT's own PandaTouch_IDF SDK runs PSRAM and flash at 120 MHz
+# (sdkconfig.defaults there); at 80 MHz the 23 MHz-pclk panel shakes on
+# any activity - the same failure mode the Waveshare 7B taught us.
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+CONFIG_SPIRAM_SPEED_120M=y
+CONFIG_ESPTOOLPY_FLASHFREQ_120M=y
