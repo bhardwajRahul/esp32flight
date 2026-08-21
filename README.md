@@ -30,8 +30,8 @@
 
 ## Quick start
 
-1. Get a **Waveshare ESP32-S3-Touch-LCD-7** (about $35), its 4.3" sibling, or a **Guition JC8048W550** (about $20) and a USB cable.
-2. Open **[the browser installer](https://theqkash.github.io/esp32flight/)** in Chrome or Edge, click *Install*, pick the serial port. One firmware fits both boards, it detects the hardware at boot.
+1. Get one of the [ten supported boards](#hardware) - from the $15 Guition JC8048W550 to the original **Waveshare ESP32-S3-Touch-LCD-7** (about $35) - and a USB cable.
+2. Open **[the browser installer](https://theqkash.github.io/esp32flight/)** in Chrome or Edge, click the button for your board, pick the serial port. The Waveshare 800x480 family and the Guition even share one auto-detecting binary.
 3. Tap the gear icon, pick your 2.4 GHz Wi-Fi from the scan list, save. The device locates itself by IP (or type any city) and starts tracking.
 
 Later updates install over the air from the web panel. The cable is only ever needed once.
@@ -171,12 +171,18 @@ Optional, with a user-provided free key: [FlightAware AeroAPI](https://www.fligh
 
 ## Hardware
 
-Three supported boards, all running the same code. The 16 MB boards share one binary with boot-time autodetection; 8 MB modules get a dedicated build:
+Ten supported configurations, all running the same code. The Waveshare 800x480 family and the Guition share one auto-detecting binary; the rest are dedicated builds, every one of them a button on [the flasher](https://theqkash.github.io/esp32flight/):
 
-- **Waveshare ESP32-S3-Touch-LCD-7** (7", the original target): ESP32-S3, 16 MB flash, 8 MB PSRAM, 800x480 RGB LCD (ST7262), GT911 capacitive touch. Recommended printable case: [Waveshare 7inch display case on Printables](https://www.printables.com/model/1425850-waveshare-esp32-s3-7inch-capacitive-touch-display).
-- **Waveshare ESP32-S3-Touch-LCD-4.3** (and the 4.3B): same electronics in a smaller panel; the whole Waveshare 800x480 family shares one pinout. Note: 4.3 units ship with an 8 MB flash module (WROOM-1 N8R8) - flash `esp32flight-vX.Y.Z-8mb-full.bin` on those. It bundles the ~330 most common airline logos and fetches the rest on demand from [esp32flight-logos](https://github.com/theqkash/esp32flight-logos).
-- **Guition JC8048W550** (5", budget option, ~$20): same ESP32-S3 class, 800x480 RGB LCD, GT911 touch. Support is new (pinout contributed from a community fork); if you run it, a short "works for me" in the issues is appreciated.
-- **Sunton ESP32-4827S043** (4.3", 480x272, ~$15): the Guition's low-res sibling - same pins, same GT911 (capacitive "C" units only; "R"/resistive and "N"/no-touch units are not supported). The UI renders its 800x480 design proportionally downscaled, so the physical layout matches the Waveshare 4.3 at a lower DPI. Dedicated build (`sdkconfig.board.sunton43`), not part of the auto-detect binary - the pins are identical to the Guition, so the panels cannot be told apart at boot.
+- **Waveshare ESP32-S3-Touch-LCD-7** (7", the original target, ~$35): ESP32-S3, 16 MB flash, 8 MB PSRAM, 800x480 RGB (ST7262), GT911 touch. Printable case: [on Printables](https://www.printables.com/model/1425850-waveshare-esp32-s3-7inch-capacitive-touch-display).
+- **Waveshare ESP32-S3-Touch-LCD-4.3 / 4.3B / 5**: same pinout as the 7. Note: 4.3 units ship an 8 MB module (N8R8) - use the `-8mb` build (curated logo set, the rest fetched on demand from [esp32flight-logos](https://github.com/theqkash/esp32flight-logos)).
+- **Waveshare ESP32-S3-Touch-LCD-7B** (7", 1024x600, ~$40): the sharpest panel, real brightness PWM via its helper MCU. Runs the memory buses at 120 MHz - the panel demands it.
+- **Waveshare ESP32-S3-Touch-LCD-7C / 7C BOX** (7", 800x480, ~$70): the boxed one - enclosure, battery, speakers, isolated IO. Audio hardware not used by the radar yet.
+- **Guition JC8048W550** (5", ~$15): the budget pick, hardware-proven since 0.3.x.
+- **Sunton ESP32-4827S043** (4.3", 480x272, ~$15): capacitive "C" and resistive "R" variants, each with its own build; the UI renders proportionally downscaled. Community-contributed.
+- **Sunton ESP32-8048S070** (7", 800x480, ~$22) and its unbranded clones: colors and display window bench-tuned by the community.
+- **Elecrow CrowPanel 5.0 / 7.0** (800x480, 4 MB flash class): single app slot, updates via the flasher (no OTA), logos on demand. Most unbranded 7" Amazon HMI boards are CrowPanel 7.0 rebrands - check the module marking (N4R8) if unsure.
+- **BigTreeTech Panda Touch** (5", 800x480, ~$75): BTT's Bambu pendant is a regular ESP32-S3 display underneath. Flashing replaces the stock Bambu-remote firmware (restorable from a backup), and the battery makes it a portable radar.
+- **M5Stack Tab5** (5", 1280x720, ~$60): ESP32-P4 with Wi-Fi over its ESP32-C6, battery, the crispest screen of the fleet. All three display generations (ILI9881C, ST7123, ST7121) are auto-detected.
 
 ## Building from source
 
