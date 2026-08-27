@@ -163,6 +163,15 @@ menu "Example Configuration"
                     ES8389 codec, battery, 32 MB flash / 16 MB PSRAM.
                     Dedicated build - the moved I2C bus defeats autodetect.
 
+            config CANFLIGHT_BOARD_JC8012P4A1
+                bool "Guition JC8012P4A1 (10.1 inch, ESP32-P4, 800x1280 MIPI-DSI)"
+                help
+                    Guition's 10.1 inch ESP32-P4 board: JD9365 MIPI-DSI panel
+                    (native portrait, UI runs landscape 1280x800), Silead
+                    GSL3680 touch, ESP32-C6 for Wi-Fi over SDIO on the P4
+                    EV-board pins. Two panel revisions exist; pick the V2
+                    option below for rear-case batch 2628 and newer.
+
             config CANFLIGHT_BOARD_PANDATOUCH
                 bool "BigTreeTech Panda Touch (5 inch, 800x480, battery)"
                 help
@@ -212,6 +221,39 @@ menu "Example Configuration"
                     app slot, no OTA (update via the web flasher), and a
                     logo-less asset set - logos are fetched on demand.
         endchoice
+
+        config CANFLIGHT_JC10_PANEL_V2
+            bool "JC8012P4A1: panel revision V2 (rear-case batch 2628+)"
+            depends on CANFLIGHT_BOARD_JC8012P4A1
+            default n
+            help
+                Same JD9365 driver chip, different glass: V2 wants its own
+                init table, a 70 MHz pixel clock, 1.5 Gbps lanes and a 10
+                line vsync back porch. Wrong choice shows horizontal lines
+                or a blank panel. No runtime detection is known.
+
+        config CANFLIGHT_JC10_ROT_270
+            bool "JC8012P4A1: rotate the other way (270 instead of 90)"
+            depends on CANFLIGHT_BOARD_JC8012P4A1
+            default n
+
+        config CANFLIGHT_JC10_TP_SWAP_XY
+            int "JC8012P4A1: touch swap XY (0/1)"
+            depends on CANFLIGHT_BOARD_JC8012P4A1
+            range 0 1
+            default 0
+
+        config CANFLIGHT_JC10_TP_MIRROR_X
+            int "JC8012P4A1: touch mirror X (0/1)"
+            depends on CANFLIGHT_BOARD_JC8012P4A1
+            range 0 1
+            default 0
+
+        config CANFLIGHT_JC10_TP_MIRROR_Y
+            int "JC8012P4A1: touch mirror Y (0/1)"
+            depends on CANFLIGHT_BOARD_JC8012P4A1
+            range 0 1
+            default 1
 
         config CANFLIGHT_TAB5_FORCE_ST7123
             bool "Tab5: force the ST7123 panel path on 0x55 units"

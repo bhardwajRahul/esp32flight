@@ -21,7 +21,11 @@ extern "C" {
  * LVGL related parameters, can be adjusted by users
  *
  */
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_CANFLIGHT_BOARD_JC8012P4A1
+/* Guition JC8012P4A1: 10.1" 1280x800 (landscape UI over the portrait MIPI-DSI panel) */
+#define LVGL_PORT_H_RES             (1280)
+#define LVGL_PORT_V_RES             (800)
+#elif CONFIG_IDF_TARGET_ESP32P4
 /* M5Stack Tab5: 5" 1280x720 (landscape UI over the portrait MIPI-DSI panel) */
 #define LVGL_PORT_H_RES             (1280)
 #define LVGL_PORT_V_RES             (720)

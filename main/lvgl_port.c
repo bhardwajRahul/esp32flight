@@ -421,7 +421,11 @@ static lv_disp_t *display_init(esp_lcd_panel_handle_t panel_handle)
      * landscape UI and software-rotates into panel space */
     disp_drv.hor_res = LVGL_PORT_V_RES;
     disp_drv.ver_res = LVGL_PORT_H_RES;
+#if CONFIG_CANFLIGHT_JC10_ROT_270
+    disp_drv.rotated = LV_DISP_ROT_270;
+#else
     disp_drv.rotated = LV_DISP_ROT_90;
+#endif
     disp_drv.sw_rotate = 1;
 #elif EXAMPLE_LVGL_PORT_ROTATION_90 || EXAMPLE_LVGL_PORT_ROTATION_270
     disp_drv.hor_res = LVGL_PORT_V_RES; // Set horizontal resolution for rotation

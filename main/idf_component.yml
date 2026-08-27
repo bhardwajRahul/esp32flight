@@ -20,6 +20,10 @@ dependencies:
     version: "^1"
     rules:
       - if: "target == esp32p4"
+  espressif/esp_lcd_jd9365:
+    version: "^1"
+    rules:
+      - if: "target == esp32p4"
   espressif/esp_lcd_touch_st7123:
     version: "^1"
     rules:
