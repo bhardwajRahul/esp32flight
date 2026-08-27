@@ -172,6 +172,15 @@ menu "Example Configuration"
                     EV-board pins. Two panel revisions exist; pick the V2
                     option below for rear-case batch 2628 and newer.
 
+            config CANFLIGHT_BOARD_CROWPANEL_ADV70
+                bool "Elecrow CrowPanel Advance 7.0 (DIS02170A V1.2+, 800x480, 16 MB)"
+                help
+                    The Advance-series 7 inch: N16R8 module (full 16 MB class),
+                    RGB panel on its own sync pins (HSYNC 40 / VSYNC 41 / DE 42 /
+                    PCLK 39), GT911 on I2C 15/16, backlight through the STC8
+                    helper MCU at I2C 0x30. Covers hardware V1.2 through V1.5;
+                    V1.0 (PCA9557 backlight) is not supported.
+
             config CANFLIGHT_BOARD_PANDATOUCH
                 bool "BigTreeTech Panda Touch (5 inch, 800x480, battery)"
                 help

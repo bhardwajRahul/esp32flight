@@ -35,6 +35,7 @@ typedef struct {
     bool has_xpt2046;           /* resistive touch over SPI instead of GT911 */
     int tp_sclk, tp_mosi, tp_miso, tp_cs, tp_irq;
     int lcd_rst_gpio;           /* panel reset line; 0 = none (no board resets via GPIO0) */
+    bool has_stc8;              /* CrowPanel Advance: STC8 helper at 0x30 owns the backlight */
 } board_cfg_t;
 
 __attribute__((unused)) static const board_cfg_t k_waveshare = {
@@ -158,6 +159,35 @@ __attribute__((unused)) static const board_cfg_t k_crowpanel_70 = {
     .hs_pulse = 48, .hs_bp = 40, .hs_fp = 40,
     .vs_pulse = 31, .vs_bp = 13, .vs_fp = 1,
     .pclk_hz = 15000000,
+    .tp_mirror = false,
+};
+
+__attribute__((unused)) static const board_cfg_t k_crowpanel_adv70 = {
+    /* Elecrow CrowPanel Advance 7.0 (DIS02170A), hardware V1.2 and newer
+     * (V1.3/V1.4/V1.5 share one pin map). N16R8 module: full 16 MB class.
+     * Pins and timings verbatim from Elecrow's official ESPHome config in
+     * the V1.3_and_V1.4_and_V1.5 example folder, cross-checked against
+     * espboards.dev; their IDF sample in the same folder still carries
+     * Waveshare-era DE/backlight code and is NOT the reference. Note the
+     * sync pins: HSYNC 40, VSYNC 41, DE 42, PCLK 39 - close to the Guition
+     * family but not the same. The backlight is an STC8 helper MCU at I2C
+     * 0x30 taking one byte (0 = brightest .. 244 = dimmest, 245 = off);
+     * the vendor boot sequence writes 250 then 0. GT911 on I2C 15/16 at
+     * 0x5D with no reset line under our control. V1.0 boards drove the
+     * backlight through a PCA9557 instead and are not covered here. */
+    .name = "Elecrow CrowPanel Advance 7.0 (V1.2+)",
+    .de = 42, .vsync = 41, .hsync = 40, .pclk = 39,
+    .data = { 21, 47, 48, 45, 38,       /* B0..B4 */
+              9, 10, 11, 12, 13, 14,    /* G0..G5 */
+              7, 17, 18, 3, 46 },       /* R0..R4 */
+    .i2c_sda = 15, .i2c_scl = 16,
+    .has_ch422g = false,
+    .has_stc8 = true,
+    .bl_gpio = -1,
+    .tp_rst_gpio = -1,
+    .hs_pulse = 4, .hs_bp = 8, .hs_fp = 8,
+    .vs_pulse = 4, .vs_bp = 8, .vs_fp = 8,
+    .pclk_hz = 16000000,
     .tp_mirror = false,
 };
 
@@ -319,6 +349,15 @@ static esp_err_t ch422g_write(uint8_t addr, uint8_t val)
  * IO1 = TP_RST, IO2 = backlight enable, IO3 = LCD_RST, IO4 = SD_CS. */
 static uint8_t s_ch32_out = 0xFF;
 
+/* CrowPanel Advance backlight helper: one raw byte to the STC8 at 0x30.
+ * 0 = brightest, 244 = dimmest, 245 = off; Elecrow's boot sequence sends
+ * 250 first (helper reset/handshake) and then the level. */
+static esp_err_t stc8_write(uint8_t val)
+{
+    return i2c_master_write_to_device(I2C_MASTER_NUM, 0x30, &val, 1,
+                                      I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+}
+
 static esp_err_t ch32v003_reg_write(uint8_t reg, uint8_t val)
 {
     uint8_t buf[2] = { reg, val };
@@ -375,6 +414,12 @@ static void board_detect(void)
 #elif CONFIG_CANFLIGHT_BOARD_PANDATOUCH
     s_board = &k_pandatouch;
     i2c_master_init(s_board->i2c_sda, s_board->i2c_scl);
+#elif CONFIG_CANFLIGHT_BOARD_CROWPANEL_ADV70
+    s_board = &k_crowpanel_adv70;
+    i2c_master_init(s_board->i2c_sda, s_board->i2c_scl);
+    stc8_write(250);                    /* vendor boot handshake */
+    vTaskDelay(pdMS_TO_TICKS(50));
+    stc8_write(245);                    /* backlight stays off until bl_on */
 #elif CONFIG_CANFLIGHT_BOARD_WAVESHARE_7C
     s_board = &k_waveshare_7c;
     i2c_master_init(s_board->i2c_sda, s_board->i2c_scl);
@@ -438,6 +483,12 @@ static void touch_reset(void)
         ch422g_write(0x38, 0x2E);           /* TP_RST high */
         esp_rom_delay_us(200 * 1000);
     } else {
+        if (s_board->tp_rst_gpio < 0) {
+            /* CrowPanel family: GT911 reset is not ours to pulse; the
+             * controller comes up on its own RC reset */
+            vTaskDelay(pdMS_TO_TICKS(200));
+            return;
+        }
         gpio_config_t io_conf = {
             .intr_type = GPIO_INTR_DISABLE,
             .pin_bit_mask = 1ULL << s_board->tp_rst_gpio,
@@ -613,6 +664,9 @@ static esp_err_t bl_gpio_set(int level)
 
 esp_err_t waveshare_rgb_lcd_bl_on(void)
 {
+    if (s_board->has_stc8) {
+        return stc8_write(0);
+    }
     if (s_board->has_ch32v003) {
         ch32v003_output(2, 1);
         ch32v003_backlight_pct(90);
@@ -627,6 +681,9 @@ esp_err_t waveshare_rgb_lcd_bl_on(void)
 
 esp_err_t waveshare_rgb_lcd_bl_off(void)
 {
+    if (s_board->has_stc8) {
+        return stc8_write(245);
+    }
     if (s_board->has_ch32v003) {
         /* PWM 0 alone is fully dark. Do NOT drop helper output 2 here:
          * a 7B owner reported the panel could not be woken by touch in
