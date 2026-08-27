@@ -181,12 +181,28 @@ esp_err_t esp_lcd_touch_new_i2c_gsl3680(const esp_lcd_panel_io_handle_t io,
     memcpy(&tp->config, config, sizeof(esp_lcd_touch_config_t));
 
     esp_err_t ret = ESP_OK;
+    /* Bring the controller out of reset BEFORE the first I2C transaction,
+     * with INT driven low meanwhile (that is how the chip settles on the
+     * 0x40 address); the first cut talked to a chip still held in reset
+     * and every write NACKed. */
+    if (config->int_gpio_num != GPIO_NUM_NC) {
+        gpio_config_t intc = {
+            .mode = GPIO_MODE_OUTPUT,
+            .pin_bit_mask = BIT64(config->int_gpio_num),
+        };
+        ESP_GOTO_ON_ERROR(gpio_config(&intc), fail, TAG, "int gpio");
+        gpio_set_level(config->int_gpio_num, 0);
+    }
     if (config->rst_gpio_num != GPIO_NUM_NC) {
         gpio_config_t rst = {
             .mode = GPIO_MODE_OUTPUT,
             .pin_bit_mask = BIT64(config->rst_gpio_num),
         };
         ESP_GOTO_ON_ERROR(gpio_config(&rst), fail, TAG, "rst gpio");
+        gpio_set_level(config->rst_gpio_num, config->levels.reset);
+        vTaskDelay(pdMS_TO_TICKS(20));
+        gpio_set_level(config->rst_gpio_num, !config->levels.reset);
+        vTaskDelay(pdMS_TO_TICKS(60));
     }
     ESP_GOTO_ON_ERROR(gsl_bringup(tp), fail, TAG, "bringup");
 

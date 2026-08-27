@@ -199,6 +199,14 @@ static const jd9365_lcd_init_cmd_t k_jd9365_init_v1[] = {
     {0x35, (uint8_t[]){0x08}, 1, 0},
     {0x37, (uint8_t[]){0x00}, 1, 0},
     {0xE0, (uint8_t[]){0x00}, 1, 0},
+    /* The esp_lcd_jd9365 driver does not add these itself (its built-in
+     * table ends the same way); ESPHome appends them in its component,
+     * which is why the presets above lack them. Without sleep-out the
+     * panel answers on DSI, the backlight lights, and the glass stays
+     * black - the first tester's exact symptom. */
+    {0xE0, (uint8_t[]){0x00}, 1, 0},
+    {0x11, (uint8_t[]){0x00}, 1, 120},   /* sleep out */
+    {0x29, (uint8_t[]){0x00}, 1, 20},    /* display on */
 };
 /* k_jd9365_init_v1: 193 commands */
 
@@ -403,5 +411,13 @@ static const jd9365_lcd_init_cmd_t k_jd9365_init_v2[] = {
     {0xE0, (uint8_t[]){0x00}, 1, 0},
     {0xE6, (uint8_t[]){0x02}, 1, 0},
     {0xE7, (uint8_t[]){0x0C}, 1, 0},
+    /* The esp_lcd_jd9365 driver does not add these itself (its built-in
+     * table ends the same way); ESPHome appends them in its component,
+     * which is why the presets above lack them. Without sleep-out the
+     * panel answers on DSI, the backlight lights, and the glass stays
+     * black - the first tester's exact symptom. */
+    {0xE0, (uint8_t[]){0x00}, 1, 0},
+    {0x11, (uint8_t[]){0x00}, 1, 120},   /* sleep out */
+    {0x29, (uint8_t[]){0x00}, 1, 20},    /* display on */
 };
 /* k_jd9365_init_v2: 200 commands */
