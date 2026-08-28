@@ -110,6 +110,18 @@ static esp_err_t gsl_bringup(esp_lcd_touch_handle_t tp)
     ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start");
     ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset2");
     ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start2");
+
+    /* Firmware-alive check, the way the vendor driver does it: once the
+     * core runs the uploaded firmware, register 0xB0 reads 5A 5A 5A 5A.
+     * Anything else means the upload did not take and touch is dead. */
+    vTaskDelay(pdMS_TO_TICKS(30));
+    uint8_t sig[4] = {0};
+    esp_err_t serr = gsl_read(tp, 0xB0, sig, 4);
+    bool alive = serr == ESP_OK && sig[0] == 0x5A && sig[1] == 0x5A &&
+                 sig[2] == 0x5A && sig[3] == 0x5A;
+    ESP_LOGI(TAG, "firmware check: 0xB0 = %02x %02x %02x %02x (%s) -> %s",
+             sig[0], sig[1], sig[2], sig[3], esp_err_to_name(serr),
+             alive ? "ALIVE" : "NOT RUNNING");
     return ESP_OK;
 }
 
@@ -141,6 +153,15 @@ static esp_err_t gsl_read_data(esp_lcd_touch_handle_t tp)
 #if CONFIG_CANFLIGHT_JC10_TP_DIAG
     /* first-hardware diagnostics: raw controller frame, throttled */
     static int64_t s_last_log;
+    static int64_t s_last_beat;
+    int64_t tnow = esp_timer_get_time();
+    if (tnow - s_last_beat > 2000000) {
+        /* heartbeat even with no touch: proves the read path and shows
+           the raw count byte the controller hands back */
+        s_last_beat = tnow;
+        ESP_LOGI(TAG, "heartbeat: reg80 = %02x %02x %02x %02x | %02x %02x %02x %02x",
+                 buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
+    }
     if (cnt > 0) {
         int64_t now = esp_timer_get_time();
         if (now - s_last_log > 150000) {
