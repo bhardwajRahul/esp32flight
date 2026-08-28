@@ -204,6 +204,9 @@ static esp_err_t panel_init(void)
 static esp_err_t touch_init(esp_lcd_touch_handle_t *out_tp)
 {
     esp_lcd_touch_config_t tp_cfg = {
+        /* Native portrait pixel frame; the driver converts the controller's
+         * raw 1664x896 grid (see esp_lcd_touch_gsl3680.c) directly into it,
+         * so no swap/mirror flags are needed. */
         .x_max = JC10_LCD_H_RES,
         .y_max = JC10_LCD_V_RES,
         .rst_gpio_num = JC10_TOUCH_RST,

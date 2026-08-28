@@ -22,6 +22,8 @@ static const char *TAG = "gsl3680";
 #define GSL_REG_PAGE       0xF0   /* firmware page select */
 #define GSL_REG_SOFTRST    0x88
 #define GSL_MAX_POINTS     5
+#define GSL_RAW_X_MAX      1664   /* factory-fw sensor grid, long axis */
+#define GSL_RAW_Y_MAX      896    /* short axis */
 #define GSL_TOUCH_LEN      (4 + GSL_MAX_POINTS * 4)
 
 static esp_err_t gsl_write(esp_lcd_touch_handle_t tp, uint8_t reg, const uint8_t *data, size_t len)
@@ -188,12 +190,20 @@ static esp_err_t gsl_read_data(esp_lcd_touch_handle_t tp)
         /* record: Y low, Y high, X low, X high|id<<4 */
         uint16_t y = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
         uint16_t x = (uint16_t)p[2] | ((uint16_t)(p[3] & 0x0F) << 8);
-        /* clamp: a value past the declared range would wrap to 65k after
-           a mirror and land the touch off-screen (looks like a dead panel) */
-        if (x >= tp->config.x_max) x = tp->config.x_max - 1;
-        if (y >= tp->config.y_max) y = tp->config.y_max - 1;
-        tp->data.coords[i].x = x;
-        tp->data.coords[i].y = y;
+        /* The factory firmware reports in the controller's own sensor grid,
+         * NOT pixels: 1664 x 896 (26 x 14 channels x 64), X increasing
+         * right-to-left along the long side, Y increasing bottom-to-top
+         * along the short side. Measured from a four-corner tap log on
+         * hardware (edge taps: x 28..1635, y 17..874 - symmetric margins
+         * against 1664/896). Convert straight to the native portrait
+         * pixel frame (x_max wide, y_max tall) that LVGL's rotation
+         * expects; the port then needs no swap/mirror flags at all. */
+        if (x > GSL_RAW_X_MAX) x = GSL_RAW_X_MAX;
+        if (y > GSL_RAW_Y_MAX) y = GSL_RAW_Y_MAX;
+        uint16_t land_x = (uint16_t)(((uint32_t)(GSL_RAW_X_MAX - x) * (tp->config.y_max - 1)) / GSL_RAW_X_MAX);
+        uint16_t land_y = (uint16_t)(((uint32_t)(GSL_RAW_Y_MAX - y) * (tp->config.x_max - 1)) / GSL_RAW_Y_MAX);
+        tp->data.coords[i].x = land_y;                              /* portrait x = landscape y */
+        tp->data.coords[i].y = (tp->config.y_max - 1) - land_x;     /* portrait y = flipped landscape x */
         tp->data.coords[i].strength = 0;
     }
     portEXIT_CRITICAL(&tp->data.lock);
