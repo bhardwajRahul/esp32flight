@@ -8,6 +8,7 @@
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_timer.h"
 
 #include "gsl3680_fw.inc"
 
@@ -128,11 +129,30 @@ static esp_err_t gsl_read_data(esp_lcd_touch_handle_t tp)
         /* record: Y low, Y high, X low, X high|id<<4 */
         uint16_t y = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
         uint16_t x = (uint16_t)p[2] | ((uint16_t)(p[3] & 0x0F) << 8);
+        /* clamp: a value past the declared range would wrap to 65k after
+           a mirror and land the touch off-screen (looks like a dead panel) */
+        if (x >= tp->config.x_max) x = tp->config.x_max - 1;
+        if (y >= tp->config.y_max) y = tp->config.y_max - 1;
         tp->data.coords[i].x = x;
         tp->data.coords[i].y = y;
         tp->data.coords[i].strength = 0;
     }
     portEXIT_CRITICAL(&tp->data.lock);
+#if CONFIG_CANFLIGHT_JC10_TP_DIAG
+    /* first-hardware diagnostics: raw controller frame, throttled */
+    static int64_t s_last_log;
+    if (cnt > 0) {
+        int64_t now = esp_timer_get_time();
+        if (now - s_last_log > 150000) {
+            s_last_log = now;
+            const uint8_t *p = &buf[4];
+            ESP_LOGI(TAG, "raw: cnt=%u x=%u y=%u id=%u [%02x %02x %02x %02x]", cnt,
+                     (unsigned)((uint16_t)p[2] | ((uint16_t)(p[3] & 0x0F) << 8)),
+                     (unsigned)((uint16_t)p[0] | ((uint16_t)p[1] << 8)), p[3] >> 4,
+                     p[0], p[1], p[2], p[3]);
+        }
+    }
+#endif
     return ESP_OK;
 }
 

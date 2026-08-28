@@ -464,6 +464,19 @@ static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
         data->point.y = touchpad_y; // Set the Y coordinate
         data->state = LV_INDEV_STATE_PRESSED; // Set state to pressed
         ESP_LOGD(TAG, "Touch position: %d,%d", touchpad_x, touchpad_y); // Log touch position
+#if CONFIG_CANFLIGHT_JC10_TP_DIAG
+        {
+            static int64_t s_last;
+            int64_t now = esp_timer_get_time();
+            if (now - s_last > 150000) {
+                s_last = now;
+                ESP_LOGI(TAG, "touch after flags: x=%u y=%u (LVGL rotates: lv_x=%d lv_y=%d of %dx%d)",
+                         touchpad_x, touchpad_y,
+                         (int)(indev_drv->disp->driver->ver_res - touchpad_y - 1), (int)touchpad_x,
+                         (int)lv_disp_get_hor_res(indev_drv->disp), (int)lv_disp_get_ver_res(indev_drv->disp));
+            }
+        }
+#endif
     } else {
         data->state = LV_INDEV_STATE_RELEASED; // Set state to released
     }
