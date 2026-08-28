@@ -45,17 +45,22 @@ static esp_err_t gsl_write_u32(esp_lcd_touch_handle_t tp, uint8_t reg, uint32_t 
     return gsl_write(tp, reg, b, 4);
 }
 
-/* Register-only reset (the wake-up dance every reference performs).
- * Deliberately NO hardware pulse here: Guition's own BSP declares the
- * touch reset as NC because it is shared with the LCD reset line, so
- * their post-upload "reset" only ever touches registers. Pulsing a real
- * reset line after the upload wipes the freshly loaded firmware from
- * RAM - the 0xB0 check then reads zeros. The single hardware pulse
- * happens once, before anything is uploaded (see the constructor). */
+/* Reset as Guition's IDF driver does it for this board type: pulse the
+ * reset line, then 0xE4=0x04 and 0xBC=0. It never writes 0xE0=0x88 (that
+ * line is commented out in their source) - the core is left running.
+ * espcontrol's driver (ALT table) does hold the core with 0xE0=0x88. */
 static esp_err_t gsl_reset(esp_lcd_touch_handle_t tp)
 {
+    if (tp->config.rst_gpio_num != GPIO_NUM_NC) {
+        gpio_set_level(tp->config.rst_gpio_num, tp->config.levels.reset);
+        vTaskDelay(pdMS_TO_TICKS(20));
+        gpio_set_level(tp->config.rst_gpio_num, !tp->config.levels.reset);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+#if CONFIG_CANFLIGHT_JC10_TP_FW_ALT
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CTRL, 0x88), TAG, "hold reset");
     vTaskDelay(pdMS_TO_TICKS(10));
+#endif
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CLOCK, 0x04), TAG, "clock on");
     vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(gsl_write_u32(tp, GSL_REG_POWER, 0), TAG, "power on");
@@ -65,8 +70,11 @@ static esp_err_t gsl_reset(esp_lcd_touch_handle_t tp)
 
 static esp_err_t gsl_clear(esp_lcd_touch_handle_t tp)
 {
+    vTaskDelay(pdMS_TO_TICKS(20));
+#if CONFIG_CANFLIGHT_JC10_TP_FW_ALT
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CTRL, 0x88), TAG, "hold");
     vTaskDelay(pdMS_TO_TICKS(20));
+#endif
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_SOFTRST, 0x01), TAG, "softrst");
     vTaskDelay(pdMS_TO_TICKS(5));
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CLOCK, 0x04), TAG, "clock");
@@ -133,8 +141,9 @@ static esp_err_t gsl_bringup(esp_lcd_touch_handle_t tp)
     ESP_RETURN_ON_ERROR(gsl_load_fw(tp), TAG, "load");
     ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start");
 #if !CONFIG_CANFLIGHT_JC10_TP_FW_ALT
-    /* Guition's driver restarts once more after the upload; espcontrol,
-       whose table the ALT build carries, does not. Follow each reference. */
+    /* Guition's IDF driver restarts once more after the upload (reset
+       pulse included - it works for them); espcontrol, whose table the
+       ALT build carries, does not. Follow each reference exactly. */
     ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset2");
     ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start2");
 #endif
@@ -254,25 +263,31 @@ esp_err_t esp_lcd_touch_new_i2c_gsl3680(const esp_lcd_panel_io_handle_t io,
      * with INT driven low meanwhile (that is how the chip settles on the
      * 0x40 address); the first cut talked to a chip still held in reset
      * and every write NACKed. */
-    if (config->int_gpio_num != GPIO_NUM_NC) {
-        gpio_config_t intc = {
-            .mode = GPIO_MODE_OUTPUT,
-            .pin_bit_mask = BIT64(config->int_gpio_num),
-        };
-        ESP_GOTO_ON_ERROR(gpio_config(&intc), fail, TAG, "int gpio");
-        gpio_set_level(config->int_gpio_num, 0);
-    }
     if (config->rst_gpio_num != GPIO_NUM_NC) {
-        /* the one and only hardware reset: before the firmware upload */
         gpio_config_t rst = {
             .mode = GPIO_MODE_OUTPUT,
             .pin_bit_mask = BIT64(config->rst_gpio_num),
         };
         ESP_GOTO_ON_ERROR(gpio_config(&rst), fail, TAG, "rst gpio");
+    }
+    if (config->int_gpio_num != GPIO_NUM_NC) {
+        gpio_config_t intc = {
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_ENABLE,
+            .pin_bit_mask = BIT64(config->int_gpio_num),
+        };
+        ESP_GOTO_ON_ERROR(gpio_config(&intc), fail, TAG, "int gpio");
+    }
+    if (config->rst_gpio_num != GPIO_NUM_NC) {
+        /* Guition's IDF driver: reset asserted with INT low, 10 ms, reset
+         * released, 10 + 50 ms before the first I2C byte */
         gpio_set_level(config->rst_gpio_num, config->levels.reset);
-        vTaskDelay(pdMS_TO_TICKS(20));
+        if (config->int_gpio_num != GPIO_NUM_NC) {
+            gpio_set_level(config->int_gpio_num, 0);
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
         gpio_set_level(config->rst_gpio_num, !config->levels.reset);
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(60));
     }
     ESP_GOTO_ON_ERROR(gsl_bringup(tp), fail, TAG, "bringup");
 

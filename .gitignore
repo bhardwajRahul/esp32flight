@@ -36,3 +36,4 @@ tools/simshot/*.png
 tools/simshot/simshot
 tools/simshot/apk_version.h
 assets-4mb/
+main/jc10_vendor_test/

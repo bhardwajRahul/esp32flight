@@ -255,6 +255,15 @@ menu "Example Configuration"
                 demo table (default) and the one the espcontrol project
                 ships. Units accept one or the other; pick by test.
 
+        config CANFLIGHT_JC10_TP_VENDOR
+            bool "JC8012P4A1: build with Guition's original GSL3680 driver (test only)"
+            depends on CANFLIGHT_BOARD_JC8012P4A1
+            default n
+            help
+                Diagnostic cross-check: compiles main/jc10_vendor_test/
+                (Guition's GPL driver + gsl_point_id, kept out of git)
+                instead of the clean-room driver. Never for releases.
+
         config CANFLIGHT_JC10_TP_DIAG
             bool "JC8012P4A1: log raw and mapped touch points (test builds)"
             depends on CANFLIGHT_BOARD_JC8012P4A1

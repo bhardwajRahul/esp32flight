@@ -27,7 +27,11 @@
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_jd9365.h"
 #include "freertos/semphr.h"
+#if CONFIG_CANFLIGHT_JC10_TP_VENDOR
+#include "esp_lcd_touch_gsl3680.h"   /* Guition's GPL driver, test builds only, not in git */
+#else
 #include "jc10/esp_lcd_touch_gsl3680.h"
+#endif
 
 static const char *TAG = "jc10";
 
@@ -254,7 +258,7 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init(void)
         .sda_io_num = JC10_I2C_SDA,
         .scl_io_num = JC10_I2C_SCL,
         .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = false,   /* board has its own pullups */
+        .flags.enable_internal_pullup = true,    /* Guition's BSP enables them too */
     };
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &s_i2c));
     ESP_LOGI(TAG, "board: %s", JC10_BOARD_NAME);
