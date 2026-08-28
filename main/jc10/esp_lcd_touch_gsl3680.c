@@ -45,15 +45,15 @@ static esp_err_t gsl_write_u32(esp_lcd_touch_handle_t tp, uint8_t reg, uint32_t 
     return gsl_write(tp, reg, b, 4);
 }
 
-/* Hardware reset pulse plus the register dance that wakes the core. */
+/* Register-only reset (the wake-up dance every reference performs).
+ * Deliberately NO hardware pulse here: Guition's own BSP declares the
+ * touch reset as NC because it is shared with the LCD reset line, so
+ * their post-upload "reset" only ever touches registers. Pulsing a real
+ * reset line after the upload wipes the freshly loaded firmware from
+ * RAM - the 0xB0 check then reads zeros. The single hardware pulse
+ * happens once, before anything is uploaded (see the constructor). */
 static esp_err_t gsl_reset(esp_lcd_touch_handle_t tp)
 {
-    if (tp->config.rst_gpio_num != GPIO_NUM_NC) {
-        gpio_set_level(tp->config.rst_gpio_num, tp->config.levels.reset);
-        vTaskDelay(pdMS_TO_TICKS(20));
-        gpio_set_level(tp->config.rst_gpio_num, !tp->config.levels.reset);
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CTRL, 0x88), TAG, "hold reset");
     vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CLOCK, 0x04), TAG, "clock on");
@@ -263,6 +263,7 @@ esp_err_t esp_lcd_touch_new_i2c_gsl3680(const esp_lcd_panel_io_handle_t io,
         gpio_set_level(config->int_gpio_num, 0);
     }
     if (config->rst_gpio_num != GPIO_NUM_NC) {
+        /* the one and only hardware reset: before the firmware upload */
         gpio_config_t rst = {
             .mode = GPIO_MODE_OUTPUT,
             .pin_bit_mask = BIT64(config->rst_gpio_num),
@@ -271,7 +272,7 @@ esp_err_t esp_lcd_touch_new_i2c_gsl3680(const esp_lcd_panel_io_handle_t io,
         gpio_set_level(config->rst_gpio_num, config->levels.reset);
         vTaskDelay(pdMS_TO_TICKS(20));
         gpio_set_level(config->rst_gpio_num, !config->levels.reset);
-        vTaskDelay(pdMS_TO_TICKS(60));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     ESP_GOTO_ON_ERROR(gsl_bringup(tp), fail, TAG, "bringup");
 
