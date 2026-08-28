@@ -3,7 +3,13 @@ set(PROJECT_VER "0.4.5")
 # Board-variant suffix: the 7B and Tab5 builds are not interchangeable with
 # the standard 800x480 binary, and the OTA handler refuses a mismatched
 # image based on this suffix.
-if(DEFINED SDKCONFIG AND SDKCONFIG MATCHES "jc10v2b")
+if(DEFINED SDKCONFIG AND SDKCONFIG MATCHES "jc10v2c")
+    set(PROJECT_VER "${PROJECT_VER}-jc10-v2-c")
+elseif(DEFINED SDKCONFIG AND SDKCONFIG MATCHES "jc10c1")
+    set(PROJECT_VER "${PROJECT_VER}-jc10-v1-c1")
+elseif(DEFINED SDKCONFIG AND SDKCONFIG MATCHES "jc10c2")
+    set(PROJECT_VER "${PROJECT_VER}-jc10-v1-c2")
+elseif(DEFINED SDKCONFIG AND SDKCONFIG MATCHES "jc10v2b")
     set(PROJECT_VER "${PROJECT_VER}-jc10-v2-b")
 elseif(DEFINED SDKCONFIG AND SDKCONFIG MATCHES "jc10b")
     set(PROJECT_VER "${PROJECT_VER}-jc10-v1-b")

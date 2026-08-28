@@ -256,13 +256,13 @@ menu "Example Configuration"
             int "JC8012P4A1: touch mirror X (0/1)"
             depends on CANFLIGHT_BOARD_JC8012P4A1
             range 0 1
-            default 0
+            default 1
 
         config CANFLIGHT_JC10_TP_MIRROR_Y
             int "JC8012P4A1: touch mirror Y (0/1)"
             depends on CANFLIGHT_BOARD_JC8012P4A1
             range 0 1
-            default 1
+            default 0
 
         config CANFLIGHT_TAB5_FORCE_ST7123
             bool "Tab5: force the ST7123 panel path on 0x55 units"
