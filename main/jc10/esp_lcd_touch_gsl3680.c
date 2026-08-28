@@ -11,6 +11,7 @@
 #include "esp_timer.h"
 
 #include "gsl3680_fw.inc"
+#include "gsl3680_fw_alt.inc"
 
 static const char *TAG = "gsl3680";
 
@@ -77,9 +78,15 @@ static esp_err_t gsl_clear(esp_lcd_touch_handle_t tp)
 
 static esp_err_t gsl_load_fw(esp_lcd_touch_handle_t tp)
 {
+#if CONFIG_CANFLIGHT_JC10_TP_FW_ALT
+    const gsl3680_fw_row_t *tbl = k_gsl3680_fw_alt;
+    size_t n = sizeof(k_gsl3680_fw_alt) / sizeof(k_gsl3680_fw_alt[0]);
+#else
+    const gsl3680_fw_row_t *tbl = k_gsl3680_fw;
     size_t n = sizeof(k_gsl3680_fw) / sizeof(k_gsl3680_fw[0]);
+#endif
     for (size_t i = 0; i < n; i++) {
-        const gsl3680_fw_row_t *r = &k_gsl3680_fw[i];
+        const gsl3680_fw_row_t *r = &tbl[i];
         esp_err_t err = (r->reg == GSL_REG_PAGE)
             ? gsl_write_u8(tp, r->reg, (uint8_t)r->val)
             : gsl_write_u32(tp, r->reg, r->val);
@@ -99,17 +106,38 @@ static esp_err_t gsl_start(esp_lcd_touch_handle_t tp)
     return ESP_OK;
 }
 
+/* Bus probe both references perform first: read page reg, write a marker,
+ * read it back. A wrong address or a chip held in reset fails here. */
+static esp_err_t gsl_probe(esp_lcd_touch_handle_t tp)
+{
+    uint8_t buf[4] = {0};
+    uint8_t marker[4] = {0x12, 0x34, 0x56, 0x00};
+    vTaskDelay(pdMS_TO_TICKS(50));
+    ESP_RETURN_ON_ERROR(gsl_read(tp, GSL_REG_PAGE, buf, 4), TAG, "probe read1");
+    ESP_LOGI(TAG, "probe: 0xF0 before = %02x %02x %02x %02x", buf[0], buf[1], buf[2], buf[3]);
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_RETURN_ON_ERROR(gsl_write(tp, GSL_REG_PAGE, marker, 4), TAG, "probe write");
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_RETURN_ON_ERROR(gsl_read(tp, GSL_REG_PAGE, buf, 4), TAG, "probe read2");
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_LOGI(TAG, "probe: 0xF0 after  = %02x %02x %02x %02x (%s)", buf[0], buf[1], buf[2], buf[3],
+             buf[0] == 0x12 ? "bus OK" : "MISMATCH");
+    return ESP_OK;
+}
+
 static esp_err_t gsl_bringup(esp_lcd_touch_handle_t tp)
 {
-    /* clear -> reset -> upload -> start -> reset -> start: the sequence
-       every working host driver performs; the second reset/start pair
-       makes the freshly loaded firmware take effect */
+    ESP_RETURN_ON_ERROR(gsl_probe(tp), TAG, "probe");
     ESP_RETURN_ON_ERROR(gsl_clear(tp), TAG, "clear");
     ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset");
     ESP_RETURN_ON_ERROR(gsl_load_fw(tp), TAG, "load");
     ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start");
+#if !CONFIG_CANFLIGHT_JC10_TP_FW_ALT
+    /* Guition's driver restarts once more after the upload; espcontrol,
+       whose table the ALT build carries, does not. Follow each reference. */
     ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset2");
     ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start2");
+#endif
 
     /* Firmware-alive check, the way the vendor driver does it: once the
      * core runs the uploaded firmware, register 0xB0 reads 5A 5A 5A 5A.
@@ -250,6 +278,7 @@ esp_err_t esp_lcd_touch_new_i2c_gsl3680(const esp_lcd_panel_io_handle_t io,
     if (config->int_gpio_num != GPIO_NUM_NC) {
         gpio_config_t intc = {
             .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_ENABLE,
             .intr_type = config->levels.interrupt ? GPIO_INTR_POSEDGE : GPIO_INTR_NEGEDGE,
             .pin_bit_mask = BIT64(config->int_gpio_num),
         };
