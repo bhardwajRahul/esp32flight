@@ -247,13 +247,22 @@ menu "Example Configuration"
             default n
 
         config CANFLIGHT_JC10_TP_FW_ALT
-            bool "JC8012P4A1: use the alternate GSL3680 firmware table (espcontrol)"
+            bool "JC8012P4A1: use the factory GSL3680 firmware table (espcontrol/factory image)"
             depends on CANFLIGHT_BOARD_JC8012P4A1
-            default n
+            default y
             help
                 Two firmware tables exist for this touch glass: Guition's
                 demo table (default) and the one the espcontrol project
                 ships. Units accept one or the other; pick by test.
+
+        config CANFLIGHT_JC10_TP_HOLD_FLOW
+            bool "JC8012P4A1: hold the touch core (0xE0=0x88) around the upload"
+            depends on CANFLIGHT_BOARD_JC8012P4A1
+            default n
+            help
+                espcontrol's and Guition's Arduino driver hold the core in
+                reset while uploading; Guition's ESP-IDF driver does not.
+                Off = IDF flow. Independent of the firmware table choice.
 
         config CANFLIGHT_JC10_TP_VENDOR
             bool "JC8012P4A1: build with Guition's original GSL3680 driver (test only)"

@@ -57,7 +57,7 @@ static esp_err_t gsl_reset(esp_lcd_touch_handle_t tp)
         gpio_set_level(tp->config.rst_gpio_num, !tp->config.levels.reset);
         vTaskDelay(pdMS_TO_TICKS(20));
     }
-#if CONFIG_CANFLIGHT_JC10_TP_FW_ALT
+#if CONFIG_CANFLIGHT_JC10_TP_HOLD_FLOW
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CTRL, 0x88), TAG, "hold reset");
     vTaskDelay(pdMS_TO_TICKS(10));
 #endif
@@ -71,7 +71,7 @@ static esp_err_t gsl_reset(esp_lcd_touch_handle_t tp)
 static esp_err_t gsl_clear(esp_lcd_touch_handle_t tp)
 {
     vTaskDelay(pdMS_TO_TICKS(20));
-#if CONFIG_CANFLIGHT_JC10_TP_FW_ALT
+#if CONFIG_CANFLIGHT_JC10_TP_HOLD_FLOW
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CTRL, 0x88), TAG, "hold");
     vTaskDelay(pdMS_TO_TICKS(20));
 #endif
@@ -133,33 +133,43 @@ static esp_err_t gsl_probe(esp_lcd_touch_handle_t tp)
     return ESP_OK;
 }
 
+static bool gsl_alive(esp_lcd_touch_handle_t tp, uint8_t sig[4])
+{
+    vTaskDelay(pdMS_TO_TICKS(30));
+    if (gsl_read(tp, 0xB0, sig, 4) != ESP_OK) {
+        return false;
+    }
+    return sig[0] == 0x5A && sig[1] == 0x5A && sig[2] == 0x5A && sig[3] == 0x5A;
+}
+
 static esp_err_t gsl_bringup(esp_lcd_touch_handle_t tp)
 {
     ESP_RETURN_ON_ERROR(gsl_probe(tp), TAG, "probe");
-    ESP_RETURN_ON_ERROR(gsl_clear(tp), TAG, "clear");
-    ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset");
-    ESP_RETURN_ON_ERROR(gsl_load_fw(tp), TAG, "load");
-    ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start");
-#if !CONFIG_CANFLIGHT_JC10_TP_FW_ALT
-    /* Guition's IDF driver restarts once more after the upload (reset
-       pulse included - it works for them); espcontrol, whose table the
-       ALT build carries, does not. Follow each reference exactly. */
-    ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset2");
-    ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start2");
-#endif
-
-    /* Firmware-alive check, the way the vendor driver does it: once the
-     * core runs the uploaded firmware, register 0xB0 reads 5A 5A 5A 5A.
-     * Anything else means the upload did not take and touch is dead. */
-    vTaskDelay(pdMS_TO_TICKS(30));
+    /* BETTA-HA-PANEL, which runs on this exact board, retries the whole
+     * touch bring-up up to eight times: the Silead core does not always
+     * come up on the first upload. Loop until the 0xB0 signature reads
+     * 5A 5A 5A 5A, exactly the check Guition's own driver performs. */
     uint8_t sig[4] = {0};
-    esp_err_t serr = gsl_read(tp, 0xB0, sig, 4);
-    bool alive = serr == ESP_OK && sig[0] == 0x5A && sig[1] == 0x5A &&
-                 sig[2] == 0x5A && sig[3] == 0x5A;
-    ESP_LOGI(TAG, "firmware check: 0xB0 = %02x %02x %02x %02x (%s) -> %s",
-             sig[0], sig[1], sig[2], sig[3], esp_err_to_name(serr),
-             alive ? "ALIVE" : "NOT RUNNING");
-    return ESP_OK;
+    for (int attempt = 1; attempt <= 8; attempt++) {
+        ESP_RETURN_ON_ERROR(gsl_clear(tp), TAG, "clear");
+        ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset");
+        ESP_RETURN_ON_ERROR(gsl_load_fw(tp), TAG, "load");
+        ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start");
+#if !CONFIG_CANFLIGHT_JC10_TP_HOLD_FLOW
+        /* Guition's IDF driver restarts once more after the upload */
+        ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset2");
+        ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start2");
+#endif
+        bool alive = gsl_alive(tp, sig);
+        ESP_LOGI(TAG, "firmware check (attempt %d): 0xB0 = %02x %02x %02x %02x -> %s",
+                 attempt, sig[0], sig[1], sig[2], sig[3], alive ? "ALIVE" : "NOT RUNNING");
+        if (alive) {
+            return ESP_OK;
+        }
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
+    ESP_LOGE(TAG, "firmware never came up after 8 attempts");
+    return ESP_OK;   /* keep the input device registered; reads return no points */
 }
 
 static esp_err_t gsl_read_data(esp_lcd_touch_handle_t tp)

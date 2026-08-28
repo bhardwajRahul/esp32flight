@@ -1,7 +1,8 @@
 /* Alternate Silead GSL3680 firmware/configuration table for the Guition
  * JC8012P4A1, as carried by the jtenniswood/espcontrol gsl3680 component
  * (components/gsl3680/gsl3680_firmware.h), field-proven on this board by
- * that project's users. It differs from Guition's own demo table (see
+ * that project's users - and byte-identical to the table inside Guition's
+ * factory image JC8012P4A1_P4-V1.2.bin. It differs from the demo table (see
  * gsl3680_fw.inc) from row 264 on - two firmwares exist for this glass and
  * only hardware tells which one a given unit accepts. Data only. */
 
