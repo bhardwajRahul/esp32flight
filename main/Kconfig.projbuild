@@ -258,7 +258,7 @@ menu "Example Configuration"
         config CANFLIGHT_JC10_TP_HOLD_FLOW
             bool "JC8012P4A1: hold the touch core (0xE0=0x88) around the upload"
             depends on CANFLIGHT_BOARD_JC8012P4A1
-            default n
+            default y
             help
                 espcontrol's and Guition's Arduino driver hold the core in
                 reset while uploading; Guition's ESP-IDF driver does not.
@@ -282,13 +282,13 @@ menu "Example Configuration"
             int "JC8012P4A1: touch swap XY (0/1)"
             depends on CANFLIGHT_BOARD_JC8012P4A1
             range 0 1
-            default 1
+            default 0
 
         config CANFLIGHT_JC10_TP_MIRROR_X
             int "JC8012P4A1: touch mirror X (0/1)"
             depends on CANFLIGHT_BOARD_JC8012P4A1
             range 0 1
-            default 1
+            default 0
 
         config CANFLIGHT_JC10_TP_MIRROR_Y
             int "JC8012P4A1: touch mirror Y (0/1)"
