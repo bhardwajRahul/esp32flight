@@ -180,7 +180,7 @@ static void tcache_put(uint32_t key, const uint8_t *data, uint32_t len)
 }
 
 /* Persistent tile cache on the assets partition: the home area is a
- * small, stable set (~20-40 tiles) and the CARTO basemap barely changes,
+ * small, stable set (~20-40 tiles) and the OSM basemap barely changes,
  * so once fetched it survives restarts and renders offline. Guarded by a
  * free-space floor (the spotting logs and on-demand logos share the
  * partition) and wiped when the view center moves far away, so a
@@ -261,6 +261,47 @@ static void ftile_unlink(uint32_t key)
 
 /* Wipe the flash tiles when the render center moves far from the stored
  * one (the device moved home): stale areas would otherwise linger. */
+/* One-time wipe when the basemap source changes: devices hold the old
+ * provider's tiles (including CARTO's watermarked ones, #31) on flash
+ * and would serve them forever. The marker file names the source. */
+#define FTILE_SRC_MARKER  FTILE_DIR "/src-osm1"
+
+static void ftile_wipe_all(void)
+{
+    DIR *d = opendir(FTILE_DIR);
+    if (d != NULL) {
+        struct dirent *e;
+        char path[320];
+        while ((e = readdir(d)) != NULL) {
+            snprintf(path, sizeof(path), FTILE_DIR "/%s", e->d_name);
+            unlink(path);
+        }
+        closedir(d);
+    }
+}
+
+static void ftile_check_source(void)
+{
+    static bool checked;
+    if (checked) {
+        return;
+    }
+    checked = true;
+    FILE *f = fopen(FTILE_SRC_MARKER, "rb");
+    if (f != NULL) {
+        fclose(f);
+        return;
+    }
+    ftile_wipe_all();
+    ESP_LOGI(TAG, "basemap source changed: flash tile cache wiped");
+    mkdir(FTILE_DIR, 0775);
+    f = fopen(FTILE_SRC_MARKER, "wb");
+    if (f != NULL) {
+        fputc('1', f);
+        fclose(f);
+    }
+}
+
 static void ftile_check_center(double lat, double lon)
 {
     static bool checked;
@@ -273,16 +314,9 @@ static void ftile_check_center(double lat, double lon)
             if (fscanf(f, "%lf %lf", &clat, &clon) == 2 &&
                 geo_haversine_km(clat, clon, lat, lon) > 150.0) {
                 fclose(f);
-                DIR *d = opendir(FTILE_DIR);
-                if (d != NULL) {
-                    struct dirent *e;
-                    char path[320];
-                    while ((e = readdir(d)) != NULL) {
-                        snprintf(path, sizeof(path), FTILE_DIR "/%s", e->d_name);
-                        unlink(path);
-                    }
-                    closedir(d);
-                }
+                ftile_wipe_all();
+                FILE *mf = fopen(FTILE_SRC_MARKER, "wb");
+                if (mf != NULL) { fputc('1', mf); fclose(mf); }
                 ESP_LOGI(TAG, "flash tiles wiped (moved %d km)",
                          (int)geo_haversine_km(clat, clon, lat, lon));
             } else {
@@ -382,7 +416,7 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
     if (!from_cache) {
         char url[96];
         snprintf(url, sizeof(url),
-                 "https://basemaps.cartocdn.com/dark_all/%d/%d/%d.png", z, tx, ty);
+                 "https://tile.openstreetmap.org/%d/%d/%d.png", z, tx, ty);
         sink->len = 0;
         esp_http_client_set_url(client, url);
         esp_err_t err = esp_http_client_perform(client);
@@ -434,11 +468,18 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
         for (int x = x0; x < x1; x++) {
             const unsigned char *p = src + x * 4;
             int r = p[0], g = p[1], b = p[2];
-            if (light) {
-                /* one-time lift at decode: v += 30% of headroom (#10) */
-                r += ((255 - r) * 77) >> 8;
-                g += ((255 - g) * 77) >> 8;
-                b += ((255 - b) * 77) >> 8;
+            if (!light) {
+                /* OSM serves a light map; the dark style is made here:
+                 * luminance inverted into a 16..128 band with a slight
+                 * blue cast (land goes near-black, labels and borders
+                 * come out bright, water sits a notch above land) -
+                 * CARTO's dark_all became watermarked (#31), so the
+                 * dark basemap is now our own pixel transform. */
+                int lum = (r * 77 + g * 150 + b * 29) >> 8;
+                int v = 16 + (((255 - lum) * 112) >> 8);
+                r = v - (v >> 4);
+                g = v;
+                b = v + (v >> 3) > 255 ? 255 : v + (v >> 3);
             }
             dst[(size_t)dy * dst_w + (ox + x)] =
                 ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
@@ -589,7 +630,8 @@ static bool render_impl(uint16_t *dst, int dst_w, int dst_h,
                         tile_view_t *out_view, int layers)
 {
     if (layers & TM_LAYER_BASE) {
-        ftile_check_center((lat_min + lat_max) / 2.0, (lon_min + lon_max) / 2.0);
+        ftile_check_source();
+    ftile_check_center((lat_min + lat_max) / 2.0, (lon_min + lon_max) / 2.0);
     }
     /* Re-render of the same area into a live canvas: skip the background
      * flood so the old frame morphs into the new one as tiles land,
@@ -650,13 +692,13 @@ static bool render_impl(uint16_t *dst, int dst_w, int dst_h,
         return false;
     }
     esp_http_client_config_t cfg = {
-        .url = "https://basemaps.cartocdn.com/dark_all/0/0/0.png",
+        .url = "https://tile.openstreetmap.org/0/0/0.png",
         .event_handler = tile_http_cb,
         .user_data = &sink,
         .timeout_ms = 5000,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .keep_alive_enable = true,
-        .user_agent = "esp32flight/1.0",
+        .user_agent = "esp32flight/0.4 (+https://github.com/theqkash/esp32flight)",
     };
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (client == NULL) {

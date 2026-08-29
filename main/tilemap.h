@@ -3,7 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Web-mercator tile view composed from CARTO dark tiles (online).
+/* Web-mercator tile view composed from OSM tiles (online; the dark
+ * style is applied at decode time - CARTO watermarked its free tiles).
  * Blocking (downloads tiles); call from a worker task, never from the UI. */
 
 typedef struct {

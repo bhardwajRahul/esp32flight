@@ -152,7 +152,7 @@ With a panel password set, every endpoint requires Basic Auth: `curl -u admin:PA
 |---|---|
 | Aircraft positions (ADS-B) | [airplanes.live](https://airplanes.live), fallbacks [adsb.lol](https://adsb.lol) and [adsb.fi](https://adsb.fi) |
 | Routes + airlines | [adsbdb.com](https://www.adsbdb.com), [adsb.lol routeset](https://api.adsb.lol/docs), [hexdb.io](https://hexdb.io) |
-| Map tiles | [CARTO basemaps](https://carto.com/basemaps) with data (c) [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors |
+| Map tiles | [OpenStreetMap](https://www.openstreetmap.org/copyright) standard tiles ((c) OpenStreetMap contributors); the dark style is applied on-device |
 | Precipitation radar (optional overlay) | [RainViewer](https://www.rainviewer.com/api.html) |
 | Geocoding, weather, timezones | [Open-Meteo](https://open-meteo.com) |
 | METAR + TAF | [aviationweather.gov](https://aviationweather.gov) (NOAA) |

@@ -453,8 +453,8 @@ static void build_content(void)
     lv_obj_set_style_text_font(attr, UIFONT(&font_pl_14, &font_pl_8), 0);
     lv_obj_set_style_text_color(attr, lv_color_hex(0x9a9a9a), 0);
     lv_label_set_text(attr, settings_get()->rain_overlay
-        ? "\xC2\xA9 OSM \xC2\xB7 \xC2\xA9 CARTO \xC2\xB7 \xC2\xA9 RainViewer"
-        : "\xC2\xA9 OSM \xC2\xB7 \xC2\xA9 CARTO");
+        ? "\xC2\xA9 OSM contributors \xC2\xB7 \xC2\xA9 RainViewer"
+        : "\xC2\xA9 OSM contributors");
     lv_obj_align(attr, LV_ALIGN_BOTTOM_RIGHT, -UISX(12), -UISY(4));
 }
 
