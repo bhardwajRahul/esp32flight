@@ -45,6 +45,7 @@ static lv_obj_t *s_sw_cls[FCLS_COUNT];
 static lv_obj_t *s_sw_rain;
 static lv_obj_t *s_sw_airsp, *s_sw_iss, *s_sw_sonde, *s_sw_ships, *s_sw_taf;
 static lv_obj_t *s_ta_oaip, *s_ta_ais;
+static lv_obj_t *s_ta_carto, *s_ta_tileurl;
 static lv_obj_t *s_dd_units, *s_dd_metar, *s_sw_cycle, *s_sw_nauto;
 static lv_obj_t *s_dd_amb_style;
 static lv_obj_t *s_sw_map_light;
@@ -326,6 +327,8 @@ static void save_cb(lv_event_t *e)
     strlcpy(cfg->ais_key, lv_textarea_get_text(s_ta_ais), sizeof(cfg->ais_key));
     cfg->taf_enabled = lv_obj_has_state(s_sw_taf, LV_STATE_CHECKED);
     strlcpy(cfg->openaip_key, lv_textarea_get_text(s_ta_oaip), sizeof(cfg->openaip_key));
+    strlcpy(cfg->carto_key, lv_textarea_get_text(s_ta_carto), sizeof(cfg->carto_key));
+    strlcpy(cfg->tile_url, lv_textarea_get_text(s_ta_tileurl), sizeof(cfg->tile_url));
     cfg->amb_style = (uint8_t)lv_dropdown_get_selected(s_dd_amb_style);
     cfg->map_light = lv_obj_has_state(s_sw_map_light, LV_STATE_CHECKED);
     cfg->retro_map = lv_obj_has_state(s_sw_retro_map, LV_STATE_CHECKED);
@@ -679,10 +682,18 @@ void ui_settings_open(void)
     s_ta_ais = add_textarea(p, 380, 328, 360, cfg->ais_key, false);
     add_hint(p, L()->hint_ais, 380, 374, 360);
 
-    add_section(p, L()->sec_smart, 426);
-    add_label(p, L()->lbl_mqtt, 0, 458);
-    s_ta_mqtt = add_textarea(p, 0, 482, 360, cfg->mqtt_uri, false);
-    add_hint(p, L()->hint_mqtt, 0, 528, 740);
+    add_section(p, L()->sec_maptiles, 426);
+    add_label(p, L()->lbl_carto, 0, 458);
+    s_ta_carto = add_textarea(p, 0, 482, 360, cfg->carto_key, false);
+    add_hint(p, L()->hint_carto, 0, 528, 360);
+    add_label(p, L()->lbl_tileurl, 380, 458);
+    s_ta_tileurl = add_textarea(p, 380, 482, 360, cfg->tile_url, false);
+    add_hint(p, L()->hint_tileurl, 380, 528, 360);
+
+    add_section(p, L()->sec_smart, 580);
+    add_label(p, L()->lbl_mqtt, 0, 612);
+    s_ta_mqtt = add_textarea(p, 0, 636, 360, cfg->mqtt_uri, false);
+    add_hint(p, L()->hint_mqtt, 0, 682, 740);
 
     /* --- System --- */
     p = tab_page(tv, L()->tab_system);
