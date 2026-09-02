@@ -9,6 +9,7 @@
 
 <p align="center">
   <a href="https://discord.gg/CwH8XKRnpz"><img src="https://img.shields.io/badge/Discord-join%20the%20esp32flight%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the esp32flight Discord"></a>
+  <a href="https://ko-fi.com/theqkash"><img src="https://img.shields.io/badge/Ko--fi-support%20the%20project-ff5e5b?style=for-the-badge&logo=kofi&logoColor=white" alt="Support esp32flight on Ko-fi"></a>
 </p>
 
 <p align="center">
@@ -52,7 +53,9 @@ No board at hand? The same radar also ships as an [Android app](#android-app).
 - Full-screen route map with the great-circle track, swipe pan and zoom, flight trails
 - Map screensaver after idle: your observation circle, every aircraft in range, clock and weather; tap a plane for its route
 - Aircraft class filter: pick any mix of airliners, light aircraft, helicopters, military and others; the class colors the type code in the list
-- Night mode, 7 color themes, English and Polish UI, all settings on the touchscreen; auto-cycling can be turned off to follow one flight
+- Night mode, 7 color themes, English and Polish UI, 24 h or 12 h AM/PM clock, all settings on the touchscreen; auto-cycling can be turned off to follow one flight
+- Optional route on the list and radar: origin/destination codes on list rows, cities in the tapped-aircraft bubble
+- Optional backlight brightness control on boards that can dim (slider, off by default), and a choice of map tile providers: OpenStreetMap with a built-in dark style, CARTO with your own free key, or any custom {z}/{x}/{y} tile server
 
 **Data**
 
@@ -66,6 +69,7 @@ No board at hand? The same radar also ships as an [Android app](#android-app).
 - Push to your phone via [ntfy.sh](https://ntfy.sh): emergency squawks, watchlist aircraft, incoming flyovers
 - Watchlist with gold highlighting; military and notable heavies (A380, AN-124, C-17...) always stand out
 - MQTT with Home Assistant auto-discovery, generic JSON webhooks, alert history on flash
+- **Physical controls**: buttons and rotary encoders on a cheap PCF8574/MCP23017 I2C expander (or free GPIOs where a board has them) mapped to actions like view switching, radar zoom, altitude limits or brightness - configured in the web panel with a learn mode; custom decks can drive the same actions over HTTP (`/api/input`)
 
 **Web panel** at `http://esp32flight.local`
 
@@ -142,6 +146,8 @@ Everything the panel shows is plain HTTP on port 80. The full reference with exa
 | `GET /api/alerts` | alert history TSV (epoch, title, message) |
 | `GET /screen.bmp` | live 800x480 screenshot of the display |
 | `GET /metrics` | Prometheus metrics (aircraft, session records, heap) |
+| `GET/POST /api/input` | run a named action (`?action=zoom_in`, `next_view`, `wake`...) - for buttons, decks, automations |
+| `GET /api/input/last` | last physical input event, used by the panel's learn mode |
 | `POST /ota` | firmware update (403 unless unlocked on the device) |
 
 With a panel password set, every endpoint requires Basic Auth: `curl -u admin:PASSWORD ...`
@@ -171,7 +177,7 @@ Optional, with a user-provided free key: [FlightAware AeroAPI](https://www.fligh
 
 ## Hardware
 
-Ten supported configurations, all running the same code. The Waveshare 800x480 family and the Guition share one auto-detecting binary; the rest are dedicated builds, every one of them a button on [the flasher](https://theqkash.github.io/esp32flight/):
+Thirteen supported configurations, all running the same code. The Waveshare 800x480 family and the Guition share one auto-detecting binary; the rest are dedicated builds, every one of them a button on [the flasher](https://theqkash.github.io/esp32flight/) (the newest ports start on [the test-builds page](https://theqkash.github.io/esp32flight/beta.html) until the next release):
 
 - **Waveshare ESP32-S3-Touch-LCD-7** (7", the original target, ~$35): ESP32-S3, 16 MB flash, 8 MB PSRAM, 800x480 RGB (ST7262), GT911 touch. Printable case: [on Printables](https://www.printables.com/model/1425850-waveshare-esp32-s3-7inch-capacitive-touch-display).
 - **Waveshare ESP32-S3-Touch-LCD-4.3 / 4.3B / 5**: same pinout as the 7. Note: 4.3 units ship an 8 MB module (N8R8) - use the `-8mb` build (curated logo set, the rest fetched on demand from [esp32flight-logos](https://github.com/theqkash/esp32flight-logos)).
@@ -180,9 +186,11 @@ Ten supported configurations, all running the same code. The Waveshare 800x480 f
 - **Guition JC8048W550** (5", ~$15): the budget pick, hardware-proven since 0.3.x.
 - **Sunton ESP32-4827S043** (4.3", 480x272, ~$15): capacitive "C" and resistive "R" variants, each with its own build; the UI renders proportionally downscaled. Community-contributed.
 - **Sunton ESP32-8048S070** (7", 800x480, ~$22) and its unbranded clones: colors and display window bench-tuned by the community.
-- **Elecrow CrowPanel 5.0 / 7.0** (800x480, 4 MB flash class): single app slot, updates via the flasher (no OTA), logos on demand. Most unbranded 7" Amazon HMI boards are CrowPanel 7.0 rebrands - check the module marking (N4R8) if unsure.
+- **Elecrow CrowPanel 5.0 / 7.0** (800x480, 4 MB flash class): single app slot, updates via the flasher (no OTA), logos on demand. Most unbranded 7" Amazon HMI boards are CrowPanel 7.0 rebrands - check the module marking (N4R8) if unsure. Hardware-confirmed by testers.
+- **Elecrow CrowPanel Advance 7.0** (DIS02170A V1.2+, 7", 800x480, 16 MB): the newer Advance series with real backlight dimming via its helper MCU. V1.0/V1.1 hardware revisions are not covered.
 - **BigTreeTech Panda Touch** (5", 800x480, ~$75): BTT's Bambu pendant is a regular ESP32-S3 display underneath. Flashing replaces the stock Bambu-remote firmware (restorable from a backup), and the battery makes it a portable radar.
 - **M5Stack Tab5** (5", 1280x720, ~$60): ESP32-P4 with Wi-Fi over its ESP32-C6, battery, the crispest screen of the fleet. All three display generations (ILI9881C, ST7123, ST7121) are auto-detected.
+- **Guition JC8012P4A1** (10.1", 800x1280, ESP32-P4, ~$40): the biggest screen of the fleet, Wi-Fi over its ESP32-C6, clean-room GSL3680 touch driver. Panel revision V1 hardware-confirmed; V2 (rear-case batch 2628+) has its own build awaiting a tester.
 
 ## Building from source
 
@@ -207,7 +215,10 @@ The Android app builds from [`apkflight/`](apkflight/): `make` gives a desktop t
 
 ## Support the project
 
-If this thing earned a spot on your shelf, you can buy me a coffee:
+esp32flight is free, open source and has no subscriptions - but every supported board
+in the table above had to land on my desk before its port could ship, and the next
+ones are waiting. If this thing earned a spot on your shelf, a coffee genuinely
+keeps new hardware coming:
 
 <a href="https://ko-fi.com/theqkash"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support on Ko-fi" height="36"></a>
 
