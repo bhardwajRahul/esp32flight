@@ -49,6 +49,8 @@ typedef struct {
     bool    airspace_enabled; /* openAIP airspace outlines (needs openaip_key) */
     char    openaip_key[64];  /* openAIP client id */
     char    ais_key[48];      /* aisstream.io API key */
+    char    carto_key[48];    /* CARTO basemaps key; empty = OSM tiles + on-device dark style */
+    char    tile_url[112];    /* custom tile URL template with {z}/{x}/{y}; overrides both */
     bool    metric_units;     /* m + km/h instead of ft + kt */
     bool    metar_decoded;    /* human-readable METAR instead of raw */
     bool    follow_mode;      /* stick to the selected aircraft, no auto-cycle */

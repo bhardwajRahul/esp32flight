@@ -236,6 +236,10 @@ static const char INDEX_HTML[] =
 "<div class='help'>Free account at openaip.net; powers the airspace zone layer.</div></div>"
 "<div><label>aisstream.io API key</label><input id='c_ais_key'>"
 "<div class='help'>Free key at aisstream.io; powers the ship layer.</div></div>"
+"<div><label>CARTO basemaps key</label><input id='c_carto_key' placeholder='blank = OSM with built-in dark style'>"
+"<div class='help'>Blank: OpenStreetMap tiles restyled dark on the device. With a free key from carto.com/basemaps/apikey: CARTO&#39;s native dark_all / light_all.</div></div>"
+"<div><label>Custom tile URL template</label><input id='c_tile_url' placeholder='https://tiles.example.com/{z}/{x}/{y}.png'>"
+"<div class='help'>Overrides both. Any 256px {z}/{x}/{y} PNG tile server; tiles are shown as served, no restyling.</div></div>"
 "<div><label>Local ADS-B receiver (dump1090/readsb)</label><input id='c_local_adsb' placeholder='http://192.168.1.50:8080/data/aircraft.json'>"
 "<label>Use local receiver</label><select id='c_local_adsb_use'><option value='1'>on</option><option value='0'>off (internet sources)</option></select>"
 "<div class='help'>Reads aircraft straight from your antenna instead of internet APIs; falls back automatically.</div></div>"
@@ -449,7 +453,7 @@ static const char INDEX_HTML[] =
 "favs=(c.favs||[]).map(f=>f&&f.name?f:{});favRender();"
 "document.getElementById('cfgsave').disabled=false;}catch(e){}}"
 "async function saveCfg(){const c={};"
-"['ssid','pass','web_pass','ntfy_topic','mqtt_uri','fa_key','watch_regs','webhook_url','local_adsb','filter_airport','openaip_key','ais_key'].forEach(k=>{const v=document.getElementById('c_'+k).value;if((k!=='pass'&&k!=='web_pass')||v)c[k]=v;});"
+"['ssid','pass','web_pass','ntfy_topic','mqtt_uri','fa_key','watch_regs','webhook_url','local_adsb','filter_airport','openaip_key','ais_key','carto_key','tile_url'].forEach(k=>{const v=document.getElementById('c_'+k).value;if((k!=='pass'&&k!=='web_pass')||v)c[k]=v;});"
 "c.cpa_alerts=document.getElementById('c_cpa_alerts').value==='1';"
 "c.cpa_all=document.getElementById('c_cpa_all').value==='1';"
 "c.filter_apt_exclude=document.getElementById('c_filter_apt_exclude').value==='1';"
@@ -637,6 +641,8 @@ static esp_err_t config_get(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "airspace_enabled", c->airspace_enabled);
     cJSON_AddStringToObject(root, "openaip_key", c->openaip_key);
     cJSON_AddStringToObject(root, "ais_key", c->ais_key);
+    cJSON_AddStringToObject(root, "carto_key", c->carto_key);
+    cJSON_AddStringToObject(root, "tile_url", c->tile_url);
     cJSON_AddBoolToObject(root, "metric_units", c->metric_units);
     cJSON_AddBoolToObject(root, "temp_f", c->temp_f);
     cJSON_AddBoolToObject(root, "metar_decoded", c->metar_decoded);
@@ -836,6 +842,8 @@ static esp_err_t config_post(httpd_req_t *req)
     }
     set_str_field(root, "openaip_key", c->openaip_key, sizeof(c->openaip_key));
     set_str_field(root, "ais_key", c->ais_key, sizeof(c->ais_key));
+    set_str_field(root, "carto_key", c->carto_key, sizeof(c->carto_key));
+    set_str_field(root, "tile_url", c->tile_url, sizeof(c->tile_url));
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "metric_units")))) {
         c->metric_units = cJSON_IsTrue(j);
     }

@@ -264,7 +264,7 @@ static void ftile_unlink(uint32_t key)
 /* One-time wipe when the basemap source changes: devices hold the old
  * provider's tiles (including CARTO's watermarked ones, #31) on flash
  * and would serve them forever. The marker file names the source. */
-#define FTILE_SRC_MARKER  FTILE_DIR "/src-osm1"
+#define FTILE_SRC_MARKER  FTILE_DIR "/src2"
 
 static void ftile_wipe_all(void)
 {
@@ -280,6 +280,20 @@ static void ftile_wipe_all(void)
     }
 }
 
+static void tile_source_url(char *out, size_t n, int z, int tx, int ty);
+
+static uint32_t tile_source_sig(void)
+{
+    char base[192];
+    tile_source_url(base, sizeof(base), 0, 0, 0);
+    uint32_t h = 2166136261u;
+    for (const char *p = base; *p != '\0'; p++) {
+        h = (h ^ (uint8_t)*p) * 16777619u;
+    }
+    /* the OSM path also restyles per map_light at decode time */
+    return h ^ (settings_get()->map_light ? 1u : 0u);
+}
+
 static void ftile_check_source(void)
 {
     static bool checked;
@@ -287,17 +301,22 @@ static void ftile_check_source(void)
         return;
     }
     checked = true;
+    unsigned long old_sig = 0;
+    uint32_t sig = tile_source_sig();
     FILE *f = fopen(FTILE_SRC_MARKER, "rb");
     if (f != NULL) {
+        int got = fscanf(f, "%lx", &old_sig);
         fclose(f);
-        return;
+        if (got == 1 && (uint32_t)old_sig == sig) {
+            return;
+        }
     }
     ftile_wipe_all();
     ESP_LOGI(TAG, "basemap source changed: flash tile cache wiped");
     mkdir(FTILE_DIR, 0775);
     f = fopen(FTILE_SRC_MARKER, "wb");
     if (f != NULL) {
-        fputc('1', f);
+        fprintf(f, "%lx", (unsigned long)sig);
         fclose(f);
     }
 }
@@ -316,7 +335,7 @@ static void ftile_check_center(double lat, double lon)
                 fclose(f);
                 ftile_wipe_all();
                 FILE *mf = fopen(FTILE_SRC_MARKER, "wb");
-                if (mf != NULL) { fputc('1', mf); fclose(mf); }
+                if (mf != NULL) { fprintf(mf, "%lx", (unsigned long)tile_source_sig()); fclose(mf); }
                 ESP_LOGI(TAG, "flash tiles wiped (moved %d km)",
                          (int)geo_haversine_km(clat, clon, lat, lon));
             } else {
@@ -386,6 +405,42 @@ static esp_err_t tile_http_cb(esp_http_client_event_t *evt)
 
 /* Fetch one tile (reusing the keep-alive connection) and blit it into dst
  * at (ox, oy). Returns false on failure. */
+/* Tile source selection (#31 follow-up): a custom {z}/{x}/{y} template
+ * wins, then CARTO with the user's own key (native dark_all/light_all),
+ * else OSM standard tiles restyled on the device. */
+static bool tile_source_is_osm(void)
+{
+    const settings_t *c = settings_get();
+    return c->tile_url[0] == '\0' && c->carto_key[0] == '\0';
+}
+
+static void tile_source_url(char *out, size_t n, int z, int tx, int ty)
+{
+    const settings_t *c = settings_get();
+    if (c->tile_url[0] != '\0') {
+        size_t o = 0;
+        for (const char *p = c->tile_url; *p != '\0' && o + 12 < n; p++) {
+            if (p[0] == '{' && p[2] == '}') {
+                int v = p[1] == 'z' ? z : p[1] == 'x' ? tx : p[1] == 'y' ? ty : -1;
+                if (v >= 0) {
+                    o += snprintf(out + o, n - o, "%d", v);
+                    p += 2;
+                    continue;
+                }
+            }
+            out[o++] = *p;
+        }
+        out[o] = '\0';
+        return;
+    }
+    if (c->carto_key[0] != '\0') {
+        snprintf(out, n, "https://basemaps.cartocdn.com/%s/%d/%d/%d.png?key=%s",
+                 c->map_light ? "light_all" : "dark_all", z, tx, ty, c->carto_key);
+        return;
+    }
+    snprintf(out, n, "https://tile.openstreetmap.org/%d/%d/%d.png", z, tx, ty);
+}
+
 static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
                       uint16_t *dst, int dst_w, int dst_h,
                       int z, int tx, int ty, int ox, int oy)
@@ -414,9 +469,8 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
     }
 
     if (!from_cache) {
-        char url[96];
-        snprintf(url, sizeof(url),
-                 "https://tile.openstreetmap.org/%d/%d/%d.png", z, tx, ty);
+        char url[192];
+        tile_source_url(url, sizeof(url), z, tx, ty);
         sink->len = 0;
         esp_http_client_set_url(client, url);
         esp_err_t err = esp_http_client_perform(client);
@@ -468,7 +522,7 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
         for (int x = x0; x < x1; x++) {
             const unsigned char *p = src + x * 4;
             int r = p[0], g = p[1], b = p[2];
-            if (!light) {
+            if (!light && tile_source_is_osm()) {
                 /* OSM serves a light map; the dark style is made here:
                  * luminance inverted into a 16..128 band with a slight
                  * blue cast (land goes near-black, labels and borders
