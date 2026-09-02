@@ -41,5 +41,8 @@ bool tilemap_render_rain(uint16_t *dst, int dst_w, int dst_h,
                          double lon_min, double lon_max,
                          tile_view_t *out_view);
 
+/* Credit line for the active basemap source (OSM / CARTO / custom). */
+const char *tilemap_source_credit(void);
+
 /* Project WGS84 to view pixel coordinates. */
 void tilemap_project(const tile_view_t *v, double lat, double lon, int *x, int *y);

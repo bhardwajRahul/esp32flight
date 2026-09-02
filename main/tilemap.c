@@ -118,6 +118,18 @@ static void tcache_drop(int i)
     s_tc[i].len = 0;
 }
 
+/* Emergency eviction on decode OOM: frees every cached tile except the
+ * one being decoded (tcache_get hands out the internal pointer, freeing
+ * it mid-decode would be use-after-free). */
+static void tcache_drop_all_except(uint32_t key)
+{
+    for (int i = 0; i < TCACHE_N; i++) {
+        if (s_tc[i].data != NULL && s_tc[i].key != key) {
+            tcache_drop(i);
+        }
+    }
+}
+
 static void tcache_put(uint32_t key, const uint8_t *data, uint32_t len)
 {
     if (len == 0 || len > TCACHE_BUDGET / 8) {
@@ -441,6 +453,18 @@ static void tile_source_url(char *out, size_t n, int z, int tx, int ty)
     snprintf(out, n, "https://tile.openstreetmap.org/%d/%d/%d.png", z, tx, ty);
 }
 
+const char *tilemap_source_credit(void)
+{
+    const settings_t *c = settings_get();
+    if (c->tile_url[0] != '\0') {
+        return "\xC2\xA9 map data providers";
+    }
+    if (c->carto_key[0] != '\0') {
+        return "\xC2\xA9 OSM \xC2\xB7 \xC2\xA9 CARTO";
+    }
+    return "\xC2\xA9 OpenStreetMap contributors";
+}
+
 static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
                       uint16_t *dst, int dst_w, int dst_h,
                       int z, int tx, int ty, int ox, int oy)
@@ -493,7 +517,28 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
     unsigned char *rgba = NULL;
     unsigned w = 0, h = 0;
     unsigned lret = lodepng_decode32(&rgba, &w, &h, fetch_buf, len);
-    if (lret != 0 || rgba == NULL) {
+    if (lret == 83) {
+        /* lodepng alloc failure: PSRAM too fragmented for the 256 KB RGBA
+         * buffer (big view buffers eat the headroom on the route map).
+         * NOT corruption - purging flash and refetching from the network
+         * changes nothing and used to spin a repaint loop that starved
+         * IDLE0. Dump the RAM tile cache instead and retry once. */
+        ESP_LOGW(TAG, "tile %d/%d/%d decode OOM, spiram free %u largest %u: evicting RAM cache",
+                 z, tx, ty, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+        free(rgba);
+        rgba = NULL;
+        w = h = 0;
+        tcache_drop_all_except(key);
+        lret = lodepng_decode32(&rgba, &w, &h, fetch_buf, len);
+        if (lret != 0 || rgba == NULL) {
+            /* still no room: let this render pass go without the tile,
+             * the periodic retry picks it up once buffers settle */
+            free(rgba);
+            free(flash_buf);
+            return false;
+        }
+    } else if (lret != 0 || rgba == NULL) {
         ESP_LOGW(TAG, "tile %d/%d/%d decode err=%u, free spiram %u", z, tx, ty,
                  lret, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         free(rgba);   /* lodepng may allocate even when it reports an error */

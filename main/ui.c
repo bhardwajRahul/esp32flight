@@ -788,9 +788,10 @@ static lv_obj_t *make_panel(lv_obj_t *parent)
 /* Basemap credit line; RainViewer joins it when the rain layer is on. */
 static const char *map_attribution(void)
 {
-    return settings_get()->rain_overlay
-        ? "\xC2\xA9 OSM \xC2\xB7 \xC2\xA9 CARTO \xC2\xB7 \xC2\xA9 RainViewer"
-        : "\xC2\xA9 OSM \xC2\xB7 \xC2\xA9 CARTO";
+    static char buf[72];
+    snprintf(buf, sizeof(buf), "%s%s", tilemap_source_credit(),
+             settings_get()->rain_overlay ? " \xC2\xB7 \xC2\xA9 RainViewer" : "");
+    return buf;
 }
 
 /* List marker color per aircraft class (liner keeps the accent). */
