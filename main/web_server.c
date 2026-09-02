@@ -177,6 +177,8 @@ static const char INDEX_HTML[] =
 "</div><div class='help'>Show only the selected classes. Military comes from the community aircraft database; class of others from the ADS-B emitter category.</div></div>"
 "<div><label>Rain radar overlay</label><select id='c_rain_overlay'><option value='0'>off</option><option value='1'>on</option></select>"
 "<div class='help'>Precipitation from RainViewer blended over the radar and maps.</div></div>"
+"<div><label>Route on list and radar</label><select id='c_show_route'><option value='0'>off</option><option value='1'>on</option></select>"
+"<div class='help'>Origin and destination codes on list rows, cities in the tapped-aircraft bubble.</div></div>"
 "<div><label>Screensaver style</label><select id='c_amb_style'><option value='0'>sky map</option><option value='1'>retro radar</option></select></div>"
 "<div><label>Altitude from (ft, 0 = off)</label><input id='c_alt_min_ft' type='number'></div>"
 "<div><label>Altitude to (ft, 0 = off)</label><input id='c_alt_max_ft' type='number'></div>"
@@ -467,6 +469,7 @@ static const char INDEX_HTML[] =
 "c.hide_ground=document.getElementById('c_hide_ground').value==='1';"
 "c.show_classes=0;for(let i=0;i<5;i++)if(document.getElementById('c_cls'+i).checked)c.show_classes|=1<<i;"
 "c.rain_overlay=document.getElementById('c_rain_overlay').value==='1';"
+"c.show_route=document.getElementById('c_show_route').value==='1';"
 "c.map_light=document.getElementById('c_map_light').value==='1';"
 "c.retro_map=document.getElementById('c_retro_map').value==='1';"
 "c.local_adsb_use=document.getElementById('c_local_adsb_use').value==='1';"
@@ -610,6 +613,7 @@ static esp_err_t config_get(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "hide_ground", c->hide_ground);
     cJSON_AddNumberToObject(root, "show_classes", c->show_classes);
     cJSON_AddBoolToObject(root, "rain_overlay", c->rain_overlay);
+    cJSON_AddBoolToObject(root, "show_route", c->show_route);
     cJSON_AddBoolToObject(root, "map_light", c->map_light);
     cJSON_AddBoolToObject(root, "retro_map", c->retro_map);
     cJSON_AddNumberToObject(root, "amb_style", c->amb_style);
@@ -700,6 +704,7 @@ static esp_err_t backup_get(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "theme", c->theme);
     cJSON_AddNumberToObject(root, "lang", c->lang);
     cJSON_AddBoolToObject(root, "rain_overlay", c->rain_overlay);
+    cJSON_AddBoolToObject(root, "show_route", c->show_route);
     cJSON_AddBoolToObject(root, "map_light", c->map_light);
     cJSON_AddBoolToObject(root, "retro_map", c->retro_map);
     cJSON_AddNumberToObject(root, "amb_style", c->amb_style);
@@ -773,6 +778,9 @@ static esp_err_t config_post(httpd_req_t *req)
     }
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "rain_overlay")))) {
         c->rain_overlay = cJSON_IsTrue(j);
+    }
+    if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "show_route")))) {
+        c->show_route = cJSON_IsTrue(j);
     }
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "map_light")))) {
         c->map_light = cJSON_IsTrue(j);

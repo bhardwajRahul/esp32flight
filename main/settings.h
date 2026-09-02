@@ -41,6 +41,7 @@ typedef struct {
      * versioned blob and reads old files as a prefix */
     uint8_t show_classes;     /* bitmask of flight_class_t, FCLS_ALL_MASK = all */
     bool    rain_overlay;     /* RainViewer precipitation layer on maps/radar */
+    bool    show_route;       /* route codes on list rows + cities in the map bubble (#28) */
     uint8_t amb_style;        /* screensaver: 0 = map, 1 = retro radar */
     bool    taf_enabled;      /* fetch TAF along with METAR */
     bool    iss_enabled;      /* ISS as an extra radar object */

@@ -906,6 +906,9 @@ static void build_list(lv_obj_t *scr)
         lv_obj_t *info = make_label(row, UIFONT(&lv_font_montserrat_12, &lv_font_montserrat_8), COL_DIM);
         lv_obj_align(info, LV_ALIGN_BOTTOM_LEFT, UISX(48), 2);
 
+        lv_obj_t *route = make_label(row, UIFONT(&lv_font_montserrat_12, &lv_font_montserrat_8), COL_DIM);
+        lv_obj_align(route, LV_ALIGN_BOTTOM_RIGHT, 0, 2);
+
         /* chip border and rounded corners are baked into the PNG assets */
         lv_obj_t *logo = lv_img_create(row);
         lv_img_set_pivot(logo, 0, 0);
@@ -2505,15 +2508,27 @@ static void render_ambient(void)
             }
         }
         if (sel >= 0) {
-            char txt[96];
+            char txt[160];
             const route_info_t *rt = routes_get_cached(s_all[sel].callsign);
             if (rt != NULL && rt->valid) {
                 char ua[20];
-                snprintf(txt, sizeof(txt), "%s\n%s " LV_SYMBOL_RIGHT " %s\n%s",
+                char cities[64];
+                if (settings_get()->show_route &&
+                    (rt->origin.city[0] || rt->destination.city[0])) {
+                    /* cities under the codes (#28); capped so the bubble
+                     * stays narrower than half the panel */
+                    snprintf(cities, sizeof(cities), "\n%.14s " LV_SYMBOL_RIGHT " %.14s",
+                             rt->origin.city[0] ? rt->origin.city : "?",
+                             rt->destination.city[0] ? rt->destination.city : "?");
+                } else {
+                    cities[0] = '\0';
+                }
+                snprintf(txt, sizeof(txt), "%s\n%s " LV_SYMBOL_RIGHT " %s%s\n%s",
                          s_all[sel].callsign,
                          rt->origin.iata[0] ? rt->origin.iata : rt->origin.icao,
                          rt->destination.iata[0] ? rt->destination.iata
                                                  : rt->destination.icao,
+                         cities,
                          units_alt(s_all[sel].alt_ft, ua, sizeof(ua)));
             } else {
                 char ua[20];
@@ -2524,8 +2539,8 @@ static void render_ambient(void)
             lv_coord_t x, y;
             amb_proj(s_all[sel].lat, s_all[sel].lon, &x, &y);
             int lx = x + 18, ly = y - 12;
-            if (lx > SCR_W - 140) {
-                lx = x - 140;
+            if (lx > SCR_W - 180) {
+                lx = x - 180;
             }
             if (ly < 0) {
                 ly = 0;
@@ -4248,6 +4263,7 @@ static void render_list_rows(void)
                      units_speed(sh->sog_kt, us, sizeof(us)), (double)sh->dist_km);
             label_set_if_changed(lv_obj_get_child(row, 2), info);
             lv_obj_add_flag(lv_obj_get_child(row, 3), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(lv_obj_get_child(row, 4), LV_OBJ_FLAG_HIDDEN);
             continue;
         }
         if (i < n_planes) {
@@ -4282,7 +4298,22 @@ static void render_list_rows(void)
             }
             label_set_if_changed(lv_obj_get_child(row, 2), info);
 
-            lv_obj_t *logo_img = lv_obj_get_child(row, 3);
+            /* origin/destination codes on the right of the info line (#28) */
+            lv_obj_t *route_lbl = lv_obj_get_child(row, 3);
+            const route_info_t *rrt = &s_shown[s_row_plane_idx[i]].route;
+            if (settings_get()->show_route && rrt->callsign[0] && rrt->valid) {
+                char rtxt[16];
+                snprintf(rtxt, sizeof(rtxt), "%s " LV_SYMBOL_RIGHT " %s",
+                         rrt->origin.iata[0] ? rrt->origin.iata : rrt->origin.icao,
+                         rrt->destination.iata[0] ? rrt->destination.iata
+                                                  : rrt->destination.icao);
+                label_set_if_changed(route_lbl, rtxt);
+                lv_obj_clear_flag(route_lbl, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(route_lbl, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            lv_obj_t *logo_img = lv_obj_get_child(row, 4);
             const char *code = airline_code(ac, &s_shown[s_row_plane_idx[i]].route);
             const lv_img_dsc_t *logo = code ? logos_get(code) : NULL;
             if (logo != NULL) {

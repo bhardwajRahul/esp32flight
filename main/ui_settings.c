@@ -46,6 +46,7 @@ static lv_obj_t *s_sw_rain;
 static lv_obj_t *s_sw_airsp, *s_sw_iss, *s_sw_sonde, *s_sw_ships, *s_sw_taf;
 static lv_obj_t *s_ta_oaip, *s_ta_ais;
 static lv_obj_t *s_ta_carto, *s_ta_tileurl;
+static lv_obj_t *s_sw_route;
 static lv_obj_t *s_dd_units, *s_dd_metar, *s_sw_cycle, *s_sw_nauto;
 static lv_obj_t *s_dd_amb_style;
 static lv_obj_t *s_sw_map_light;
@@ -320,6 +321,7 @@ static void save_cb(lv_event_t *e)
     lv_textarea_set_text(s_ta_night_to, hhmm);
     cfg->ambient_idle_min = atoi(lv_textarea_get_text(s_ta_amb_idle));
     cfg->rain_overlay = lv_obj_has_state(s_sw_rain, LV_STATE_CHECKED);
+    cfg->show_route = lv_obj_has_state(s_sw_route, LV_STATE_CHECKED);
     cfg->airspace_enabled = lv_obj_has_state(s_sw_airsp, LV_STATE_CHECKED);
     cfg->iss_enabled = lv_obj_has_state(s_sw_iss, LV_STATE_CHECKED);
     cfg->sonde_enabled = lv_obj_has_state(s_sw_sonde, LV_STATE_CHECKED);
@@ -656,6 +658,7 @@ void ui_settings_open(void)
     s_sw_sonde = add_switch(p, L()->sonde_lbl, 380, 664, cfg->sonde_enabled);
     s_sw_ships = add_switch(p, L()->ships_lbl, 0, 716, cfg->ships_enabled);
     s_sw_taf = add_switch(p, L()->taf_lbl, 380, 716, cfg->taf_enabled);
+    s_sw_route = add_switch(p, L()->route_lbl, 0, 768, cfg->show_route);
 
     /* --- Integrations --- */
     p = tab_page(tv, L()->tab_integr);

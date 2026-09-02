@@ -54,6 +54,7 @@ typedef struct {
     const char *iss_lbl, *sonde_lbl, *ships_lbl, *airspace_lbl, *taf_lbl;
     const char *lbl_oaip, *hint_oaip, *lbl_ais, *hint_ais;
     const char *sec_maptiles, *lbl_carto, *hint_carto, *lbl_tileurl, *hint_tileurl;
+    const char *route_lbl;
     const char *sec_notify, *sec_datasrc, *sec_smart;
     const char *lm_planes, *lm_ships, *lm_all;   /* list content toggle */
     const char *ship_dest, *ship_pos;            /* ship detail tiles */
