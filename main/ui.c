@@ -819,11 +819,13 @@ static void build_header(lv_obj_t *scr)
     lv_obj_align(s_weather_label, LV_ALIGN_LEFT_MID, UISX(14), 0);
 
     s_clock_label = make_label(hdr, UIFONT(&font_pl_20, &font_pl_12), COL_TEXT);
-    lv_obj_align(s_clock_label, LV_ALIGN_CENTER, UISX(60), 0);
+    /* dead center: offset +60 collided with the status label on busy
+     * headers (#33, clock painted over the city name) */
+    lv_obj_align(s_clock_label, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(s_clock_label, "");
 
     s_status_label = make_label(hdr, UIFONT(&font_pl_14, &font_pl_8), COL_DIM);
-    lv_obj_set_width(s_status_label, UISX(205));
+    lv_obj_set_width(s_status_label, UISX(230));
     lv_label_set_long_mode(s_status_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(s_status_label, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_align(s_status_label, LV_ALIGN_RIGHT_MID, -UISX(122), 0);
