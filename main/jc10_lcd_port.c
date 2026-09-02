@@ -27,11 +27,7 @@
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_jd9365.h"
 #include "freertos/semphr.h"
-#if CONFIG_CANFLIGHT_JC10_TP_VENDOR
-#include "esp_lcd_touch_gsl3680.h"   /* Guition's GPL driver, test builds only, not in git */
-#else
 #include "jc10/esp_lcd_touch_gsl3680.h"
-#endif
 
 static const char *TAG = "jc10";
 
@@ -216,9 +212,11 @@ static esp_err_t touch_init(esp_lcd_touch_handle_t *out_tp)
             .interrupt = 0,
         },
         .flags = {
-            .swap_xy = CONFIG_CANFLIGHT_JC10_TP_SWAP_XY,
-            .mirror_x = CONFIG_CANFLIGHT_JC10_TP_MIRROR_X,
-            .mirror_y = CONFIG_CANFLIGHT_JC10_TP_MIRROR_Y,
+            /* all zero: the driver itself maps the 1664x896 sensor grid
+             * to native portrait pixels, no post-transform wanted */
+            .swap_xy = 0,
+            .mirror_x = 0,
+            .mirror_y = 0,
         },
     };
     esp_lcd_panel_io_i2c_config_t io_cfg = ESP_LCD_TOUCH_IO_I2C_GSL3680_CONFIG();

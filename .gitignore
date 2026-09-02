@@ -36,4 +36,8 @@ tools/simshot/*.png
 tools/simshot/simshot
 tools/simshot/apk_version.h
 assets-4mb/
-main/jc10_vendor_test/
+stage-045/
+sdkconfig.8mb
+sdkconfig.guition
+sdkconfig.sunton43
+sdkconfig.sunton43r

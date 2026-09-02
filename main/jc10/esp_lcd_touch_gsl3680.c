@@ -11,7 +11,6 @@
 #include "esp_timer.h"
 
 #include "gsl3680_fw.inc"
-#include "gsl3680_fw_alt.inc"
 
 static const char *TAG = "gsl3680";
 
@@ -59,10 +58,8 @@ static esp_err_t gsl_reset(esp_lcd_touch_handle_t tp)
         gpio_set_level(tp->config.rst_gpio_num, !tp->config.levels.reset);
         vTaskDelay(pdMS_TO_TICKS(20));
     }
-#if CONFIG_CANFLIGHT_JC10_TP_HOLD_FLOW
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CTRL, 0x88), TAG, "hold reset");
     vTaskDelay(pdMS_TO_TICKS(10));
-#endif
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CLOCK, 0x04), TAG, "clock on");
     vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(gsl_write_u32(tp, GSL_REG_POWER, 0), TAG, "power on");
@@ -73,10 +70,8 @@ static esp_err_t gsl_reset(esp_lcd_touch_handle_t tp)
 static esp_err_t gsl_clear(esp_lcd_touch_handle_t tp)
 {
     vTaskDelay(pdMS_TO_TICKS(20));
-#if CONFIG_CANFLIGHT_JC10_TP_HOLD_FLOW
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CTRL, 0x88), TAG, "hold");
     vTaskDelay(pdMS_TO_TICKS(20));
-#endif
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_SOFTRST, 0x01), TAG, "softrst");
     vTaskDelay(pdMS_TO_TICKS(5));
     ESP_RETURN_ON_ERROR(gsl_write_u8(tp, GSL_REG_CLOCK, 0x04), TAG, "clock");
@@ -88,13 +83,8 @@ static esp_err_t gsl_clear(esp_lcd_touch_handle_t tp)
 
 static esp_err_t gsl_load_fw(esp_lcd_touch_handle_t tp)
 {
-#if CONFIG_CANFLIGHT_JC10_TP_FW_ALT
-    const gsl3680_fw_row_t *tbl = k_gsl3680_fw_alt;
-    size_t n = sizeof(k_gsl3680_fw_alt) / sizeof(k_gsl3680_fw_alt[0]);
-#else
     const gsl3680_fw_row_t *tbl = k_gsl3680_fw;
     size_t n = sizeof(k_gsl3680_fw) / sizeof(k_gsl3680_fw[0]);
-#endif
     for (size_t i = 0; i < n; i++) {
         const gsl3680_fw_row_t *r = &tbl[i];
         esp_err_t err = (r->reg == GSL_REG_PAGE)
@@ -157,11 +147,6 @@ static esp_err_t gsl_bringup(esp_lcd_touch_handle_t tp)
         ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset");
         ESP_RETURN_ON_ERROR(gsl_load_fw(tp), TAG, "load");
         ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start");
-#if !CONFIG_CANFLIGHT_JC10_TP_HOLD_FLOW
-        /* Guition's IDF driver restarts once more after the upload */
-        ESP_RETURN_ON_ERROR(gsl_reset(tp), TAG, "reset2");
-        ESP_RETURN_ON_ERROR(gsl_start(tp), TAG, "start2");
-#endif
         bool alive = gsl_alive(tp, sig);
         ESP_LOGI(TAG, "firmware check (attempt %d): 0xB0 = %02x %02x %02x %02x -> %s",
                  attempt, sig[0], sig[1], sig[2], sig[3], alive ? "ALIVE" : "NOT RUNNING");

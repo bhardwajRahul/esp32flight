@@ -1,9 +1,6 @@
 # Board bring-up is per chip: the S3 boards (Waveshare/Guition) share the RGB
 # port with runtime autodetect, the ESP32-P4 (M5Stack Tab5) has a MIPI-DSI port.
-if(CONFIG_CANFLIGHT_BOARD_JC8012P4A1 AND CONFIG_CANFLIGHT_JC10_TP_VENDOR)
-    set(BOARD_PORT_SRC "jc10_lcd_port.c" "jc10_vendor_test/esp_lcd_touch_gsl3680.c" "jc10_vendor_test/gsl_point_id.c")
-    set(BOARD_PORT_INC "jc10_vendor_test/include")
-elseif(CONFIG_CANFLIGHT_BOARD_JC8012P4A1)
+if(CONFIG_CANFLIGHT_BOARD_JC8012P4A1)
     set(BOARD_PORT_SRC "jc10_lcd_port.c" "jc10/esp_lcd_touch_gsl3680.c")
 elseif(IDF_TARGET STREQUAL "esp32p4")
     set(BOARD_PORT_SRC "tab5_lcd_port.c" "tab5/esp_lcd_st7123.c" "tab5/esp_lcd_st7121.c")
