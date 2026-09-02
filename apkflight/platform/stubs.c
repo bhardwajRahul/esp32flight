@@ -40,6 +40,8 @@ void mqtt_pub_state(const char *json)
     (void)json;
 }
 
+void mqtt_pub_backlight_changed(void) { }
+
 /* waveshare_rgb_lcd_port.h API: the SDL window has no backlight */
 esp_err_t waveshare_esp32_s3_rgb_lcd_init(void) { return ESP_OK; }
 esp_err_t waveshare_rgb_lcd_bl_on(void) { return ESP_OK; }

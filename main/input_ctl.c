@@ -13,7 +13,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#ifndef APKFLIGHT
 #include "esp_timer.h"
+#endif
 
 #include "settings.h"
 #include "mqtt_pub.h"
@@ -98,6 +100,12 @@ static int64_t  s_last_event_us;
 
 /* ---------- deferred settings save (encoder ticks must not hammer NVS) */
 
+#ifdef APKFLIGHT
+static void save_later(void)
+{
+    settings_save();   /* plain file write on Android, no debounce needed */
+}
+#else
 static esp_timer_handle_t s_save_timer;
 
 static void save_cb(void *arg)
@@ -117,6 +125,7 @@ static void save_later(void)
     esp_timer_stop(s_save_timer);
     esp_timer_start_once(s_save_timer, 3 * 1000 * 1000);
 }
+#endif
 
 /* ---------- actions ---------- */
 
@@ -230,6 +239,10 @@ bool input_ctl_dispatch(const char *action)
 
 bool input_ctl_last_event(char *buf, size_t n, unsigned *age_ms)
 {
+#ifdef APKFLIGHT
+    (void)buf; (void)n; (void)age_ms;
+    return false;   /* no physical inputs on Android */
+#else
     if (s_last_event[0] == '\0') {
         return false;
     }
@@ -238,6 +251,7 @@ bool input_ctl_last_event(char *buf, size_t n, unsigned *age_ms)
         *age_ms = (unsigned)((esp_timer_get_time() - s_last_event_us) / 1000);
     }
     return true;
+#endif
 }
 
 /* ---------- mapping parser ---------- */
