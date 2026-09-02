@@ -68,7 +68,7 @@ No board at hand? The same radar also ships as an [Android app](#android-app).
 
 - Push to your phone via [ntfy.sh](https://ntfy.sh): emergency squawks, watchlist aircraft, incoming flyovers
 - Watchlist with gold highlighting; military and notable heavies (A380, AN-124, C-17...) always stand out
-- MQTT with Home Assistant auto-discovery, generic JSON webhooks, alert history on flash
+- MQTT with Home Assistant auto-discovery (aircraft sensors, plus the screen backlight as a dimmable HA light on boards with brightness control enabled), generic JSON webhooks, alert history on flash
 - **Physical controls**: buttons and rotary encoders on a cheap PCF8574/MCP23017 I2C expander (or free GPIOs where a board has them) mapped to actions like view switching, radar zoom, altitude limits or brightness - configured in the web panel with a learn mode; custom decks can drive the same actions over HTTP (`/api/input`)
 
 **Web panel** at `http://esp32flight.local`

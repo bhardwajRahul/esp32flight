@@ -16,6 +16,7 @@
 #include "esp_timer.h"
 
 #include "settings.h"
+#include "mqtt_pub.h"
 #include "ui.h"
 #include "lvgl_port.h"
 #ifndef APKFLIGHT
@@ -220,6 +221,7 @@ bool input_ctl_dispatch(const char *action)
         char t[32];
         snprintf(t, sizeof(t), "Brightness %d%%", b);
         ui_toast(t);
+        mqtt_pub_backlight_changed();
         save_later();
         return true;
     }
