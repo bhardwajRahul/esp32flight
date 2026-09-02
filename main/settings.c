@@ -40,6 +40,10 @@ void settings_load(void)
     s_settings.show_classes = FCLS_ALL_MASK;
     s_settings.rain_overlay = false;
     s_settings.show_route = false;
+    s_settings.brightness_ctl = false;
+    s_settings.brightness = 100;
+    s_settings.clock_12h = false;
+    s_settings.input_map[0] = '\0';
     s_settings.map_light = false;
     s_settings.local_adsb_use = true;
     s_settings.temp_f = false;
@@ -124,6 +128,16 @@ void settings_load(void)
     if (nvs_get_u8(h, "showroute", &hide) == ESP_OK) {
         s_settings.show_route = hide != 0;
     }
+    if (nvs_get_u8(h, "brightctl", &hide) == ESP_OK) {
+        s_settings.brightness_ctl = hide != 0;
+    }
+    if (nvs_get_u8(h, "bright", &hide) == ESP_OK && hide >= 5 && hide <= 100) {
+        s_settings.brightness = hide;
+    }
+    if (nvs_get_u8(h, "clk12", &hide) == ESP_OK) {
+        s_settings.clock_12h = hide != 0;
+    }
+    get_str(h, "inputmap", s_settings.input_map, sizeof(s_settings.input_map));
     if (nvs_get_u8(h, "amb_style", &hide) == ESP_OK) {
         s_settings.amb_style = hide == 1 ? 1 : 0;
     }
@@ -255,6 +269,10 @@ esp_err_t settings_save(void)
     nvs_set_u8(h, "show_cls", s_settings.show_classes);
     nvs_set_u8(h, "rain", s_settings.rain_overlay ? 1 : 0);
     nvs_set_u8(h, "showroute", s_settings.show_route ? 1 : 0);
+    nvs_set_u8(h, "brightctl", s_settings.brightness_ctl ? 1 : 0);
+    nvs_set_u8(h, "bright", s_settings.brightness);
+    nvs_set_u8(h, "clk12", s_settings.clock_12h ? 1 : 0);
+    nvs_set_str(h, "inputmap", s_settings.input_map);
     nvs_set_u8(h, "amb_style", s_settings.amb_style);
     nvs_set_u8(h, "theme", (uint8_t)s_settings.theme);
     nvs_set_u8(h, "lang", (uint8_t)s_settings.lang);

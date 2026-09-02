@@ -68,6 +68,13 @@ const char *waveshare_lcd_board_name(void);
 esp_err_t waveshare_rgb_lcd_bl_on(void);
 esp_err_t waveshare_rgb_lcd_bl_off(void);
 
+/* Brightness: 5..100 percent. bl_dimmable() says whether this board's
+ * backlight hardware can dim at all (CH422G boards are on/off only);
+ * bl_pct() is a no-op returning ESP_ERR_NOT_SUPPORTED there. Every port
+ * (S3 RGB family, Tab5, JC10) implements both. */
+bool waveshare_rgb_lcd_bl_dimmable(void);
+esp_err_t waveshare_rgb_lcd_bl_pct(int pct);
+
 /* First RGB frame buffer (800x480 RGB565 in PSRAM), NULL before init. */
 void *waveshare_lcd_get_fb(void);
 

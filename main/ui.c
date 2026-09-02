@@ -11,6 +11,7 @@
 #include "fonts.h"
 #include "lang.h"
 #include "settings.h"
+#include "clock_fmt.h"
 #include "ui_photo.h"
 #include "geo_math.h"
 #include "logos.h"
@@ -225,6 +226,17 @@ static int s_amb_px, s_amb_py;     /* scale pivot: home position in map pixels *
 static char s_weather_txt[96];
 static bool s_bl_off;
 
+/* Re-assert the configured brightness after a full-on: bl_on() drives the
+ * panel to maximum on every board. No-op at 100%% or on on/off-only
+ * backlights (CH422G). Exposed for the settings slider and input actions. */
+void ui_apply_brightness(void)
+{
+    const settings_t *c = settings_get();
+    if (c->brightness_ctl && c->brightness < 100 && waveshare_rgb_lcd_bl_dimmable()) {
+        waveshare_rgb_lcd_bl_pct(c->brightness);
+    }
+}
+
 static lv_obj_t *s_stats_panel;
 static lv_obj_t *s_sv_vals[4];
 static lv_obj_t *s_sv_chart;
@@ -398,7 +410,7 @@ static void airport_local_time(const airport_t *ap, char *dst, size_t n)
     time_t local = now + ap->tz_offset_s;
     struct tm tm;
     gmtime_r(&local, &tm);
-    snprintf(dst, n, "%02d:%02d", tm.tm_hour, tm.tm_min);
+    clock_fmt(dst, n, tm.tm_hour, tm.tm_min);
 }
 
 /* "~24 min (14:52)" when speed and (optionally) wall clock are available */
@@ -488,8 +500,8 @@ static void clock_timer_cb(lv_timer_t *t)
     }
     struct tm tm;
     home_localtime(now, &tm);
-    char hm[8];
-    snprintf(hm, sizeof(hm), "%02d:%02d", tm.tm_hour, tm.tm_min);
+    char hm[12];
+    clock_fmt(hm, sizeof(hm), tm.tm_hour, tm.tm_min);
     label_set_if_changed(s_clock_label, hm);
     if (s_amb != NULL && s_amb_clock != NULL) {
         label_set_if_changed(s_amb_clock, hm);
@@ -2660,6 +2672,7 @@ static void amb_click_cb(lv_event_t *e)
 {
     if (s_bl_off) {
         waveshare_rgb_lcd_bl_on();
+        ui_apply_brightness();
         s_bl_off = false;
         return;     /* first tap only wakes the screen */
     }
@@ -2849,6 +2862,7 @@ static void idle_timer_cb(lv_timer_t *t)
                  * old gate then kept the panel black past sunrise (7B
                  * owner report) until a reboot. */
                 waveshare_rgb_lcd_bl_on();
+                ui_apply_brightness();
                 s_bl_off = false;
             }
         }
@@ -2859,6 +2873,7 @@ static void idle_timer_cb(lv_timer_t *t)
      * does disabling night mode from the web panel while dark. */
     if (s_bl_off && (idle_ms < 11000U || !cfg->night_enabled)) {
         waveshare_rgb_lcd_bl_on();
+        ui_apply_brightness();
         s_bl_off = false;
     }
 }
@@ -4030,8 +4045,8 @@ static void render_detail(void)
                              + rt->destination.tz_offset_s;
             struct tm tm;
             gmtime_r(&arr, &tm);
-            char hh[8], af[64];
-            snprintf(hh, sizeof(hh), "%02d:%02d", tm.tm_hour, tm.tm_min);
+            char hh[12], af[64];
+            clock_fmt(hh, sizeof(hh), tm.tm_hour, tm.tm_min);
             snprintf(af, sizeof(af), L()->arr_fmt, hh);
             el += snprintf(extra + el, sizeof(extra) - el, "%s%s",
                            el ? "  \xC2\xB7  " : "", af);
@@ -4326,4 +4341,100 @@ static void render_list_rows(void)
             lv_obj_add_flag(s_list_rows[i], LV_OBJ_FLAG_HIDDEN);
         }
     }
+}
+
+
+/* ---------- toast + physical input actions (#13) ---------- */
+
+static lv_obj_t *s_toast;
+
+static void toast_close(lv_timer_t *t)
+{
+    (void)t;
+    if (lvgl_port_lock(200 / portTICK_PERIOD_MS)) {
+        if (s_toast != NULL) {
+            lv_obj_del(s_toast);
+            s_toast = NULL;
+        }
+        lvgl_port_unlock();
+    }
+}
+
+void ui_toast(const char *text)
+{
+    if (!lvgl_port_lock(200 / portTICK_PERIOD_MS)) {
+        return;
+    }
+    if (s_toast != NULL) {
+        lv_obj_del(s_toast);
+        s_toast = NULL;
+    }
+    s_toast = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(s_toast, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_align(s_toast, LV_ALIGN_BOTTOM_MID, 0, -UISY(24));
+    lv_obj_set_style_bg_color(s_toast, COL_PANEL, 0);
+    lv_obj_set_style_border_width(s_toast, 1, 0);
+    lv_obj_set_style_border_color(s_toast, COL_ACCENT, 0);
+    lv_obj_set_style_radius(s_toast, UISY(10), 0);
+    lv_obj_set_style_pad_all(s_toast, UISY(10), 0);
+    lv_obj_clear_flag(s_toast, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *l = make_label(s_toast, UIFONT(&font_pl_16, &font_pl_10), COL_TEXT);
+    lv_label_set_text(l, text);
+    lv_timer_t *t = lv_timer_create(toast_close, 2200, NULL);
+    lv_timer_set_repeat_count(t, 1);
+    lvgl_port_unlock();
+}
+
+/* UI-side actions for input_ctl. MUST be called while holding the LVGL
+ * lock. Returns false for names it does not own. */
+bool ui_input_action(const char *a)
+{
+    if (strcmp(a, "next_view") == 0 || strcmp(a, "prev_view") == 0) {
+        int v = (s_view_mode + (a[0] == 'n' ? 1 : 4)) % 5;
+        apply_view(v);
+        return true;
+    }
+    if (strcmp(a, "next_ac") == 0 || strcmp(a, "prev_ac") == 0) {
+        if (s_shown_count == 0) {
+            return true;
+        }
+        int d = a[0] == 'n' ? 1 : s_shown_count - 1;
+        s_selected = s_selected < 0 ? 0 : (s_selected + d) % s_shown_count;
+        strlcpy(s_selected_hex, s_shown[s_selected].ac.hex, sizeof(s_selected_hex));
+        s_sel_ship_mmsi = 0;
+        render_list_selection();
+        render_right();
+        int row = row_of_shown(s_selected);
+        if (row >= 0) {
+            lv_obj_scroll_to_view(s_list_rows[row], LV_ANIM_ON);
+        }
+        if (s_cycle_timer != NULL) {
+            lv_timer_reset(s_cycle_timer);
+        }
+        return true;
+    }
+    if (strcmp(a, "zoom_in") == 0 || strcmp(a, "zoom_out") == 0) {
+        double z = s_radar_zoom * (strcmp(a, "zoom_in") == 0 ? 1.0 / 1.5 : 1.5);
+        if (z < 0.18) z = 0.18;
+        if (z > 3.4) z = 3.4;
+        if (z > 0.95 && z < 1.06) z = 1.0;
+        s_radar_zoom = z;
+        radar_tiles_want();
+        return true;
+    }
+    if (strcmp(a, "wake") == 0) {
+        if (s_bl_off) {
+            waveshare_rgb_lcd_bl_on();
+            ui_apply_brightness();
+            s_bl_off = false;
+        }
+        if (s_amb != NULL) {
+            amb_close();
+        }
+        return true;
+    }
+    if (strcmp(a, "list_planes") == 0) { ui_set_list_mode(0); return true; }
+    if (strcmp(a, "list_ships") == 0)  { ui_set_list_mode(1); return true; }
+    if (strcmp(a, "list_all") == 0)    { ui_set_list_mode(2); return true; }
+    return false;
 }

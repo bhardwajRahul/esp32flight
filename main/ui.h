@@ -11,6 +11,9 @@ void ui_init(void);
  * used by the desktop build for screenshot testing. */
 void ui_set_view(int mode);
 void ui_prewarm_ambient(void);   /* boot-time screensaver map prefetch */
+void ui_apply_brightness(void); /* re-apply settings brightness after bl_on */
+void ui_toast(const char *text);          /* 2s bottom-center notice, any task */
+bool ui_input_action(const char *action); /* #13 actions; call under LVGL lock */
 void ui_set_list_mode(int mode);   /* 0 planes, 1 ships, 2 all */
 
 /* One-line status in the header (Wi-Fi / location / errors). */

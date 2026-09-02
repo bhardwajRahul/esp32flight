@@ -11,6 +11,7 @@
 #include "flight_task.h"
 #include "logos.h"
 #include "settings.h"
+#include "input_ctl.h"
 #include "tilemap.h"
 #include "ui.h"
 #include "ui_settings.h"
@@ -50,6 +51,10 @@ void app_main(void)
 
     ESP_ERROR_CHECK(waveshare_esp32_s3_rgb_lcd_init());
     waveshare_rgb_lcd_bl_on();
+    if (settings_get()->brightness_ctl && settings_get()->brightness < 100 &&
+        waveshare_rgb_lcd_bl_dimmable()) {
+        waveshare_rgb_lcd_bl_pct(settings_get()->brightness);
+    }
 
     logos_init();
     airports_init();
@@ -71,6 +76,7 @@ void app_main(void)
         ESP_LOGW(TAG, "Wi-Fi init failed: %s", esp_err_to_name(err));
     }
 
+    input_ctl_init();
     web_server_start();
     flight_task_start();
 }

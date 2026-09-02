@@ -49,6 +49,7 @@ idf_component_register(
         "notify.c"
         "obslog.c"
         "settings.c"
+        "input_ctl.c"
         "theme.c"
         "tilemap.c"
         "trails.c"

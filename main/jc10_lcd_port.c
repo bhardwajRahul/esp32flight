@@ -100,6 +100,16 @@ esp_err_t waveshare_rgb_lcd_bl_off(void)
     return ledc_update_duty(LEDC_LOW_SPEED_MODE, JC10_LEDC_CH);
 }
 
+bool waveshare_rgb_lcd_bl_dimmable(void) { return true; }
+
+esp_err_t waveshare_rgb_lcd_bl_pct(int pct)
+{
+    if (pct < 5) pct = 5;
+    if (pct > 100) pct = 100;
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, JC10_LEDC_CH, (uint32_t)(4095 * pct / 100));
+    return ledc_update_duty(LEDC_LOW_SPEED_MODE, JC10_LEDC_CH);
+}
+
 /* ---------- DSI panel ---------- */
 
 static IRAM_ATTR bool trans_done_cb(esp_lcd_panel_handle_t panel,

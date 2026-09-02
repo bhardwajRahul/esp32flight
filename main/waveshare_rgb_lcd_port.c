@@ -12,6 +12,8 @@
  * Adapted from Waveshare's 08_lvgl_Porting demo (CC0-1.0).
  */
 #include "waveshare_rgb_lcd_port.h"
+#include "driver/ledc.h"
+#include "esp_check.h"
 #if CONFIG_CANFLIGHT_BOARD_SUNTON_4827S043R
 #include "driver/spi_master.h"
 #include "esp_lcd_touch_xpt2046.h"
@@ -677,6 +679,56 @@ esp_err_t waveshare_rgb_lcd_bl_on(void)
     }
     ch422g_write(0x24, 0x01);
     return ch422g_write(0x38, 0x1E);
+}
+
+bool waveshare_rgb_lcd_bl_dimmable(void)
+{
+    /* CH32V003 and STC8 helpers PWM natively; a plain backlight GPIO can
+     * be driven by LEDC. The CH422G expander pin is on/off only. */
+    return s_board->has_ch32v003 || s_board->has_stc8 || s_board->bl_gpio >= 0;
+}
+
+esp_err_t waveshare_rgb_lcd_bl_pct(int pct)
+{
+    if (pct < 5) pct = 5;
+    if (pct > 100) pct = 100;
+    if (s_board->has_ch32v003) {
+        ch32v003_backlight_pct(pct);
+        return ESP_OK;
+    }
+    if (s_board->has_stc8) {
+        /* 0 = brightest .. 244 = dimmest (245 would switch off) */
+        return stc8_write((uint8_t)((100 - pct) * 244 / 100));
+    }
+    if (s_board->bl_gpio >= 0) {
+        /* lazily hang a LEDC channel on the backlight pin; bl_on/bl_off
+         * keep using plain GPIO writes, which re-claim the pin from the
+         * matrix, so re-attach on every call */
+        static bool timer_ready;
+        if (!timer_ready) {
+            const ledc_timer_config_t timer = {
+                .speed_mode = LEDC_LOW_SPEED_MODE,
+                .duty_resolution = LEDC_TIMER_10_BIT,
+                .timer_num = LEDC_TIMER_1,
+                .freq_hz = 5000,
+                .clk_cfg = LEDC_AUTO_CLK,
+            };
+            ESP_RETURN_ON_ERROR(ledc_timer_config(&timer), "bl", "ledc timer");
+            timer_ready = true;
+        }
+        const ledc_channel_config_t ch = {
+            .gpio_num = s_board->bl_gpio,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
+            .channel = LEDC_CHANNEL_2,
+            .intr_type = LEDC_INTR_DISABLE,
+            .timer_sel = LEDC_TIMER_1,
+            .duty = (uint32_t)(1023 * pct / 100),
+            .hpoint = 0,
+        };
+        ESP_RETURN_ON_ERROR(ledc_channel_config(&ch), "bl", "ledc chan");
+        return ESP_OK;
+    }
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 esp_err_t waveshare_rgb_lcd_bl_off(void)

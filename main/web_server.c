@@ -21,6 +21,7 @@
 #include "obslog.h"
 #include "alertlog.h"
 #include "settings.h"
+#include "input_ctl.h"
 #include "airports.h"
 #include "ui.h"
 #include "ui_settings.h"
@@ -213,6 +214,11 @@ static const char INDEX_HTML[] =
 "<div class='cfgcard'><h4>Display</h4><div class='grid2'>"
 "<div><label>Brighter map tiles</label><select id='c_map_light'><option value='0'>off</option><option value='1'>on</option></select>"
 "<div><label>Map on retro radar</label><select id='c_retro_map'><option value='0'>off</option><option value='1'>on</option></select>"
+"<div><label>12-hour clock (AM/PM)</label><select id='c_clock_12h'><option value='0'>24 h</option><option value='1'>12 h AM/PM</option></select></div>"
+"<div><label>Brightness control</label><select id='c_brightness_ctl'><option value='0'>off (default)</option><option value='1'>on</option></select>"
+"<div class='help'>Master switch for backlight dimming. Off keeps stock full-brightness behavior on every board.</div></div>"
+"<div><label>Brightness (5-100)</label><input id='c_brightness' type='number' min='5' max='100'>"
+"<div class='help'>Needs brightness control on and a dimmable backlight; CH422G boards (Waveshare 800x480) are on/off.</div></div>"
 "<div class='help'>Lifts the dark map style for readability. New tiles only; the device reloads its map after a restart.</div></div>"
 "<div><label>Theme</label><select id='c_theme'><option value='0'>Dark</option><option value='1'>Light</option><option value='2'>Black</option><option value='3'>Nord</option><option value='4'>Solarized</option><option value='5'>Purple</option><option value='6'>Forest</option></select></div>"
 "<div><label>Language</label><select id='c_lang'><option value='0'>English</option><option value='1'>Polski</option></select></div>"
@@ -246,6 +252,14 @@ static const char INDEX_HTML[] =
 "<label>Use local receiver</label><select id='c_local_adsb_use'><option value='1'>on</option><option value='0'>off (internet sources)</option></select>"
 "<div class='help'>Reads aircraft straight from your antenna instead of internet APIs; falls back automatically.</div></div>"
 "</div></div>"
+"<div class='cfgcard'><h4>Physical controls</h4>"
+"<div class='help'>Buttons and rotary encoders on a PCF8574 or MCP23017 I2C expander wired to the display bus, or on free GPIO pins where the board has any (Guition JC8048W550: 17 and 18) - issue #13. Custom decks can also call <code>POST /api/input {\"action\":\"zoom_in\"}</code> directly.</div>"
+"<div class='grid2'><div><label>Expander chip</label><select id='in_chip'><option value='none'>none</option><option value='pcf'>PCF8574</option><option value='mcp'>MCP23017</option></select></div>"
+"<div><label>I2C address (hex)</label><input id='in_addr' placeholder='20' maxlength='2'></div></div>"
+"<div id='inrows'></div>"
+"<div style='margin-top:8px'><button type='button' onclick='inLearn()'>Add mapping (learn: press or turn now)</button> <button type='button' onclick='inManual()'>Add manually</button> <span id='instat' class='dim'></span></div>"
+"<div class='help'>Learn listens for 6 seconds: press a button once (short or long chosen in the row) or turn the encoder one click. GPIO entries (g17s, q17,18) are added manually - unmapped GPIOs are not polled, so learn cannot see them. Save and restart applies the map.</div>"
+"</div>"
 "<div class='cfgcard'><h4>Backup</h4><div class='grid2'>"
 "<div><label>Download</label><a href='/api/backup' download><button type='button'>Backup settings (JSON)</button></a>"
 "<div class='help'>Everything including Wi-Fi and API keys. Keep it private.</div></div>"
@@ -443,6 +457,43 @@ static const char INDEX_HTML[] =
 "try{const r=await fetch('/api/config',{method:'POST',body:t});"
 "document.getElementById('bkstat').textContent=r.ok?'restored - device restarting':'restore failed';}"
 "catch(e){document.getElementById('bkstat').textContent='restore failed'}}"
+"const IN_ACTS=['next_view','prev_view','next_ac','prev_ac','zoom_in','zoom_out','wake','list_planes','list_ships','list_all','toggle_rain','follow_toggle','alt_min_up','alt_min_down','alt_max_up','alt_max_down','brightness_up','brightness_down'];"
+"let inRows=[];"
+"function inSel(v){return '<select class=\"in_a\">'+IN_ACTS.map(a=>`<option ${a===v?'selected':''}>${a}</option>`).join('')+'</select>';}"
+"function inRender(){const el=document.getElementById('inrows');if(!el)return;el.innerHTML=inRows.map((r,i)=>"
+"`<div class='inrow' data-i='${i}' style='margin:4px 0'>&#9881; <b>${r.ev}</b> ${(r.ev[0]==='e'||r.ev[0]==='q')?('CW '+inSel(r.a)+' CCW '+inSel(r.b||IN_ACTS[0])):inSel(r.a)}"
+"${(r.ev[0]==='b'||r.ev[0]==='g')?` <select class='in_k'><option value='s' ${r.ev.endsWith('s')?'selected':''}>short</option><option value='l' ${r.ev.endsWith('l')?'selected':''}>long</option></select>`:''}"
+" <button type='button' onclick='inRows.splice(${i},1);inRender()'>x</button></div>`).join('');}"
+"function inCollect(){document.querySelectorAll('#inrows .inrow').forEach(d=>{const i=+d.dataset.i;const sels=d.querySelectorAll('.in_a');inRows[i].a=sels[0].value;if(sels[1])inRows[i].b=sels[1].value;const k=d.querySelector('.in_k');if(k)inRows[i].ev=inRows[i].ev.slice(0,-1)+k.value;});}"
+"async function inLearn(){const st=document.getElementById('instat');const chip=document.getElementById('in_chip').value;"
+"if(chip==='none'){st.textContent='pick a chip and save first';return;}"
+"st.textContent='listening...';const pins=new Set();let lastEv='';"
+"for(let i=0;i<15;i++){await new Promise(r=>setTimeout(r,400));"
+"try{const r=await fetch('/api/input/last');const j=await r.json();"
+"if(j.event&&j.age_ms<1200&&j.event!==lastEv){lastEv=j.event;if(j.event[0]==='b')pins.add(j.event.slice(1,-1));if(j.event[0]==='e')pins.add('E'+j.event.slice(1,-1));}}catch(e){}}"
+"const arr=[...pins];"
+"if(arr.length===0){st.textContent='nothing detected - is the current map saved and the expander wired?';return;}"
+"if(arr.length===1&&arr[0][0]==='E'){inRows.push({ev:'e'+arr[0].slice(1)+',?',a:IN_ACTS[0],b:IN_ACTS[1]});st.textContent='encoder detected (fill pin B)';}"
+"else if(arr.length===2){inRows.push({ev:'e'+arr[0].replace('E','')+','+arr[1].replace('E',''),a:IN_ACTS[0],b:IN_ACTS[1]});st.textContent='encoder pair detected';}"
+"else{inRows.push({ev:'b'+arr[0].replace('E','')+'s',a:IN_ACTS[0]});st.textContent='button detected';}"
+"inRender();}"
+"function inManual(){const ev=prompt('Event code: b<pin>s / b<pin>l (expander button), e<pinA>,<pinB> (expander encoder), g<gpio>s / g<gpio>l (GPIO button), q<gpioA>,<gpioB> (GPIO encoder)','g17s');if(!ev)return;"
+"if(/^[bg]\\d+[sl]$/.test(ev))inRows.push({ev:ev,a:IN_ACTS[0]});"
+"else if(/^[eq]\\d+,\\d+$/.test(ev))inRows.push({ev:ev,a:IN_ACTS[0],b:IN_ACTS[1]});"
+"else{document.getElementById('instat').textContent='bad event code';return;}inRender();}"
+"function inParse(m){inRows=[];const chipEl=document.getElementById('in_chip');const addrEl=document.getElementById('in_addr');"
+"if(!chipEl)return;chipEl.value='none';addrEl.value='20';if(!m)return void inRender();"
+"const t=m.split(';');const h=t[0].match(/^(pcf|mcp)@([0-9a-fA-F]+)$/);"
+"if(h){t.shift();chipEl.value=h[1];addrEl.value=h[2];}"
+"t.forEach(e=>{let mm=e.match(/^([bg]\\d+[sl])=(.+)$/);if(mm){inRows.push({ev:mm[1],a:mm[2]});return;}"
+"mm=e.match(/^([eq]\\d+,\\d+)=([^,]+),(.+)$/);if(mm)inRows.push({ev:mm[1],a:mm[2],b:mm[3]});});inRender();}"
+"function inSerialize(){inCollect();const chip=document.getElementById('in_chip').value;"
+"if(inRows.length===0)return '';"
+"const ent=inRows.filter(r=>chip!=='none'||r.ev[0]==='g'||r.ev[0]==='q').map(r=>(r.ev[0]==='e'||r.ev[0]==='q')?`${r.ev}=${r.a},${r.b}`:`${r.ev}=${r.a}`);"
+"if(ent.length===0)return '';"
+"if(chip==='none')return ent.join(';');"
+"const addr=(document.getElementById('in_addr').value||'20').toLowerCase();"
+"return chip+'@'+addr+';'+ent.join(';');}"
 "async function loadCfg(){try{const r=await fetch('/api/config');const c=await r.json();"
 "tempF=c.temp_f===true;"
 "for(const k in c){const el=document.getElementById('c_'+k);if(!el)continue;"
@@ -453,6 +504,7 @@ static const char INDEX_HTML[] =
 "document.getElementById('c_night_start').value=mm(c.night_start_min||1380);"
 "document.getElementById('c_night_end').value=mm(c.night_end_min||390);"
 "favs=(c.favs||[]).map(f=>f&&f.name?f:{});favRender();"
+"inParse(c.input_map||'');"
 "document.getElementById('cfgsave').disabled=false;}catch(e){}}"
 "async function saveCfg(){const c={};"
 "['ssid','pass','web_pass','ntfy_topic','mqtt_uri','fa_key','watch_regs','webhook_url','local_adsb','filter_airport','openaip_key','ais_key','carto_key','tile_url'].forEach(k=>{const v=document.getElementById('c_'+k).value;if((k!=='pass'&&k!=='web_pass')||v)c[k]=v;});"
@@ -472,6 +524,10 @@ static const char INDEX_HTML[] =
 "c.show_route=document.getElementById('c_show_route').value==='1';"
 "c.map_light=document.getElementById('c_map_light').value==='1';"
 "c.retro_map=document.getElementById('c_retro_map').value==='1';"
+"c.clock_12h=document.getElementById('c_clock_12h').value==='1';"
+"c.brightness_ctl=document.getElementById('c_brightness_ctl').value==='1';"
+"c.brightness=Math.min(100,Math.max(5,+document.getElementById('c_brightness').value||100));"
+"c.input_map=inSerialize();"
 "c.local_adsb_use=document.getElementById('c_local_adsb_use').value==='1';"
 "['taf','iss','sonde','ships','airspace'].forEach(k=>c[k+'_enabled']=document.getElementById('c_'+k+'_enabled').value==='1');"
 "['metric_units','metar_decoded','follow_mode','temp_f'].forEach(k=>c[k]=document.getElementById('c_'+k).value==='1');"
@@ -614,6 +670,9 @@ static esp_err_t config_get(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "show_classes", c->show_classes);
     cJSON_AddBoolToObject(root, "rain_overlay", c->rain_overlay);
     cJSON_AddBoolToObject(root, "show_route", c->show_route);
+    cJSON_AddBoolToObject(root, "clock_12h", c->clock_12h);
+    cJSON_AddNumberToObject(root, "brightness", c->brightness);
+    cJSON_AddBoolToObject(root, "brightness_ctl", c->brightness_ctl);
     cJSON_AddBoolToObject(root, "map_light", c->map_light);
     cJSON_AddBoolToObject(root, "retro_map", c->retro_map);
     cJSON_AddNumberToObject(root, "amb_style", c->amb_style);
@@ -647,6 +706,7 @@ static esp_err_t config_get(httpd_req_t *req)
     cJSON_AddStringToObject(root, "ais_key", c->ais_key);
     cJSON_AddStringToObject(root, "carto_key", c->carto_key);
     cJSON_AddStringToObject(root, "tile_url", c->tile_url);
+    cJSON_AddStringToObject(root, "input_map", c->input_map);
     cJSON_AddBoolToObject(root, "metric_units", c->metric_units);
     cJSON_AddBoolToObject(root, "temp_f", c->temp_f);
     cJSON_AddBoolToObject(root, "metar_decoded", c->metar_decoded);
@@ -697,6 +757,9 @@ static esp_err_t backup_get(httpd_req_t *req)
     cJSON_AddStringToObject(root, "filter_airport", c->filter_airport);
     cJSON_AddStringToObject(root, "openaip_key", c->openaip_key);
     cJSON_AddStringToObject(root, "ais_key", c->ais_key);
+    cJSON_AddStringToObject(root, "carto_key", c->carto_key);
+    cJSON_AddStringToObject(root, "tile_url", c->tile_url);
+    cJSON_AddStringToObject(root, "input_map", c->input_map);
     cJSON_AddBoolToObject(root, "fixed", c->use_fixed_loc);
     cJSON_AddNumberToObject(root, "lat", c->lat);
     cJSON_AddNumberToObject(root, "lon", c->lon);
@@ -705,6 +768,9 @@ static esp_err_t backup_get(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "lang", c->lang);
     cJSON_AddBoolToObject(root, "rain_overlay", c->rain_overlay);
     cJSON_AddBoolToObject(root, "show_route", c->show_route);
+    cJSON_AddBoolToObject(root, "clock_12h", c->clock_12h);
+    cJSON_AddNumberToObject(root, "brightness", c->brightness);
+    cJSON_AddBoolToObject(root, "brightness_ctl", c->brightness_ctl);
     cJSON_AddBoolToObject(root, "map_light", c->map_light);
     cJSON_AddBoolToObject(root, "retro_map", c->retro_map);
     cJSON_AddNumberToObject(root, "amb_style", c->amb_style);
@@ -782,6 +848,16 @@ static esp_err_t config_post(httpd_req_t *req)
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "show_route")))) {
         c->show_route = cJSON_IsTrue(j);
     }
+    if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "clock_12h")))) {
+        c->clock_12h = cJSON_IsTrue(j);
+    }
+    if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "brightness_ctl")))) {
+        c->brightness_ctl = cJSON_IsTrue(j);
+    }
+    if (cJSON_IsNumber((j = cJSON_GetObjectItem(root, "brightness")))) {
+        int b = j->valueint;
+        c->brightness = (uint8_t)(b < 5 ? 5 : b > 100 ? 100 : b);
+    }
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "map_light")))) {
         c->map_light = cJSON_IsTrue(j);
     }
@@ -852,6 +928,7 @@ static esp_err_t config_post(httpd_req_t *req)
     set_str_field(root, "ais_key", c->ais_key, sizeof(c->ais_key));
     set_str_field(root, "carto_key", c->carto_key, sizeof(c->carto_key));
     set_str_field(root, "tile_url", c->tile_url, sizeof(c->tile_url));
+    set_str_field(root, "input_map", c->input_map, sizeof(c->input_map));
     if (cJSON_IsBool((j = cJSON_GetObjectItem(root, "metric_units")))) {
         c->metric_units = cJSON_IsTrue(j);
     }
@@ -989,6 +1066,63 @@ static esp_err_t airport_get(httpd_req_t *req)
 }
 
 /* undocumented helper for remote screenshots: /view?m=N switches the view */
+/* #13: named input actions for custom decks and the expander mapper.
+ * GET /api/input?action=zoom_in or POST {"action":"zoom_in"}. */
+static esp_err_t input_req(httpd_req_t *req)
+{
+    AUTH_GUARD(req);
+    char act[32] = "";
+    if (req->method == HTTP_POST) {
+        char body[96];
+        int n = httpd_req_recv(req, body, sizeof(body) - 1);
+        if (n > 0) {
+            body[n] = '\0';
+            cJSON *root = cJSON_Parse(body);
+            if (root != NULL) {
+                const cJSON *j = cJSON_GetObjectItem(root, "action");
+                if (cJSON_IsString(j)) {
+                    strlcpy(act, j->valuestring, sizeof(act));
+                }
+                cJSON_Delete(root);
+            }
+        }
+    }
+    if (act[0] == '\0') {
+        char q[64] = "";
+        if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+            httpd_query_key_value(q, "action", act, sizeof(act));
+        }
+    }
+    if (act[0] == '\0') {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "action required");
+    }
+    if (!input_ctl_dispatch(act)) {
+        httpd_resp_set_status(req, "422 Unprocessable Entity");
+        httpd_resp_set_type(req, "application/json");
+        char out[300];
+        snprintf(out, sizeof(out), "{\"error\":\"unknown action\",\"actions\":\"%s\"}",
+                 input_ctl_actions());
+        return httpd_resp_sendstr(req, out);
+    }
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
+/* learn mode: last physical event seen by the expander poller */
+static esp_err_t input_last_get(httpd_req_t *req)
+{
+    AUTH_GUARD(req);
+    char ev[8];
+    unsigned age = 0;
+    httpd_resp_set_type(req, "application/json");
+    if (!input_ctl_last_event(ev, sizeof(ev), &age)) {
+        return httpd_resp_sendstr(req, "{}");
+    }
+    char out[64];
+    snprintf(out, sizeof(out), "{\"event\":\"%s\",\"age_ms\":%u}", ev, age);
+    return httpd_resp_sendstr(req, out);
+}
+
 static esp_err_t view_get(httpd_req_t *req)
 {
     AUTH_GUARD(req);
@@ -1179,7 +1313,7 @@ void web_server_start(void)
 #ifndef APKFLIGHT
     config.core_id = 0;   /* keep TLS/JSON chatter off the LVGL core */
 #endif
-    config.max_uri_handlers = 16;
+    config.max_uri_handlers = 20;
     config.lru_purge_enable = true;
 
     httpd_handle_t server = NULL;
@@ -1199,6 +1333,9 @@ void web_server_start(void)
 #ifndef APKFLIGHT
         { .uri = "/view", .method = HTTP_GET, .handler = view_get },
         { .uri = "/api/airport", .method = HTTP_GET, .handler = airport_get },
+        { .uri = "/api/input", .method = HTTP_GET, .handler = input_req },
+        { .uri = "/api/input", .method = HTTP_POST, .handler = input_req },
+        { .uri = "/api/input/last", .method = HTTP_GET, .handler = input_last_get },
 #endif
         { .uri = "/metrics", .method = HTTP_GET, .handler = metrics_get },
         { .uri = "/ota", .method = HTTP_POST, .handler = ota_post },

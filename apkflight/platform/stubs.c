@@ -44,6 +44,8 @@ void mqtt_pub_state(const char *json)
 esp_err_t waveshare_esp32_s3_rgb_lcd_init(void) { return ESP_OK; }
 esp_err_t waveshare_rgb_lcd_bl_on(void) { return ESP_OK; }
 esp_err_t waveshare_rgb_lcd_bl_off(void) { return ESP_OK; }
+bool waveshare_rgb_lcd_bl_dimmable(void) { return false; }
+esp_err_t waveshare_rgb_lcd_bl_pct(int pct) { (void)pct; return ESP_OK; }
 
 /* board name for /api/state; the app is its own hardware */
 const char *waveshare_lcd_board_name(void)

@@ -23,6 +23,7 @@
 #include "lvgl_port.h"
 #include "routes.h"
 #include "settings.h"
+#include "clock_fmt.h"
 #include <math.h>
 #include "geo_math.h"
 #include "http_util.h"
@@ -478,20 +479,20 @@ static void publish_web_state(const aircraft_list_t *list, const weather_t *wx,
             cJSON_AddStringToObject(jr, "to_cc", rt->destination.country);
             time_t now = time(NULL);
             if (now > 1600000000) {
-                char lt[8];
+                char lt[12];
                 struct tm tm;
                 if (rt->origin.tz_known &&
                     !(tz_home_known() && rt->origin.tz_offset_s == tz_home_offset())) {
                     time_t l = now + rt->origin.tz_offset_s;
                     gmtime_r(&l, &tm);
-                    snprintf(lt, sizeof(lt), "%02d:%02d", tm.tm_hour, tm.tm_min);
+                    clock_fmt(lt, sizeof(lt), tm.tm_hour, tm.tm_min);
                     cJSON_AddStringToObject(jr, "from_time", lt);
                 }
                 if (rt->destination.tz_known &&
                     !(tz_home_known() && rt->destination.tz_offset_s == tz_home_offset())) {
                     time_t l = now + rt->destination.tz_offset_s;
                     gmtime_r(&l, &tm);
-                    snprintf(lt, sizeof(lt), "%02d:%02d", tm.tm_hour, tm.tm_min);
+                    clock_fmt(lt, sizeof(lt), tm.tm_hour, tm.tm_min);
                     cJSON_AddStringToObject(jr, "to_time", lt);
                 }
             }

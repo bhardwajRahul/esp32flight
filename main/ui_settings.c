@@ -18,6 +18,9 @@
 #include "lang.h"
 #include "lvgl_port.h"
 #include "settings.h"
+#ifndef APKFLIGHT
+#include "waveshare_rgb_lcd_port.h"
+#endif
 #include "wifi_mgr.h"
 
 #include "theme.h"
@@ -47,6 +50,7 @@ static lv_obj_t *s_sw_airsp, *s_sw_iss, *s_sw_sonde, *s_sw_ships, *s_sw_taf;
 static lv_obj_t *s_ta_oaip, *s_ta_ais;
 static lv_obj_t *s_ta_carto, *s_ta_tileurl;
 static lv_obj_t *s_sw_route;
+static lv_obj_t *s_slider_bright, *s_sw_clk12, *s_sw_brightctl;
 static lv_obj_t *s_dd_units, *s_dd_metar, *s_sw_cycle, *s_sw_nauto;
 static lv_obj_t *s_dd_amb_style;
 static lv_obj_t *s_sw_map_light;
@@ -234,6 +238,19 @@ static void auto_loc_cb(lv_event_t *e)
     }
 }
 
+#ifndef APKFLIGHT
+static void brightness_cb(lv_event_t *e)
+{
+    lv_obj_t *sl = lv_event_get_target(e);
+    /* live preview only when the master switch is armed (either already
+     * saved, or toggled on right now on this screen) */
+    if (settings_get()->brightness_ctl ||
+        (s_sw_brightctl != NULL && lv_obj_has_state(s_sw_brightctl, LV_STATE_CHECKED))) {
+        waveshare_rgb_lcd_bl_pct(lv_slider_get_value(sl));
+    }
+}
+#endif
+
 static void radius_cb(lv_event_t *e)
 {
     int nm = lv_slider_get_value(s_slider_radius);
@@ -322,6 +339,15 @@ static void save_cb(lv_event_t *e)
     cfg->ambient_idle_min = atoi(lv_textarea_get_text(s_ta_amb_idle));
     cfg->rain_overlay = lv_obj_has_state(s_sw_rain, LV_STATE_CHECKED);
     cfg->show_route = lv_obj_has_state(s_sw_route, LV_STATE_CHECKED);
+    cfg->clock_12h = lv_obj_has_state(s_sw_clk12, LV_STATE_CHECKED);
+#ifndef APKFLIGHT
+    if (s_slider_bright != NULL) {
+        cfg->brightness = (uint8_t)lv_slider_get_value(s_slider_bright);
+    }
+    if (s_sw_brightctl != NULL) {
+        cfg->brightness_ctl = lv_obj_has_state(s_sw_brightctl, LV_STATE_CHECKED);
+    }
+#endif
     cfg->airspace_enabled = lv_obj_has_state(s_sw_airsp, LV_STATE_CHECKED);
     cfg->iss_enabled = lv_obj_has_state(s_sw_iss, LV_STATE_CHECKED);
     cfg->sonde_enabled = lv_obj_has_state(s_sw_sonde, LV_STATE_CHECKED);
@@ -740,21 +766,36 @@ void ui_settings_open(void)
     lv_dropdown_set_selected(s_dd_amb_style, cfg->amb_style == 1 ? 1 : 0);
     s_sw_map_light = add_switch(p, L()->map_light_lbl, 0, 524, cfg->map_light);
     s_sw_retro_map = add_switch(p, L()->retro_map_lbl, 380, 524, cfg->retro_map);
+    s_sw_clk12 = add_switch(p, L()->clk12_lbl, 0, 576, cfg->clock_12h);
+    s_slider_bright = NULL;
+    s_sw_brightctl = NULL;
+#ifndef APKFLIGHT
+    if (waveshare_rgb_lcd_bl_dimmable()) {
+        s_sw_brightctl = add_switch(p, L()->brightctl_lbl, 380, 570, cfg->brightness_ctl);
+        add_label(p, L()->bright_lbl, 380, 622);
+        s_slider_bright = lv_slider_create(p);
+        lv_obj_set_size(s_slider_bright, UISX(280), UISY(16));
+        lv_obj_set_pos(s_slider_bright, UISX(460), UISY(634));
+        lv_slider_set_range(s_slider_bright, 5, 100);
+        lv_slider_set_value(s_slider_bright, cfg->brightness, LV_ANIM_OFF);
+        lv_obj_add_event_cb(s_slider_bright, brightness_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    }
+#endif
 
 #ifdef APKFLIGHT
     /* No web panel and no OTA in the app - updates arrive as a new APK. */
-    int nety = 584;
+    int nety = 688;
 #else
-    add_section(p, L()->sec_webpanel, 584);
-    s_ta_webpass = add_textarea(p, 0, 616, 360, cfg->web_pass, false);
-    add_hint(p, L()->lbl_webpass, 0, 662, 360);
+    add_section(p, L()->sec_webpanel, 688);
+    s_ta_webpass = add_textarea(p, 0, 720, 360, cfg->web_pass, false);
+    add_hint(p, L()->lbl_webpass, 0, 766, 360);
 
-    add_section(p, L()->sec_updates, 696);
-    lv_obj_t *sw_ota = add_switch(p, L()->ota_unlock, 0, 728, cfg->ota_enabled);
+    add_section(p, L()->sec_updates, 800);
+    lv_obj_t *sw_ota = add_switch(p, L()->ota_unlock, 0, 832, cfg->ota_enabled);
     lv_obj_add_event_cb(sw_ota, ota_unlock_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    lv_obj_t *hint = add_label(p, L()->ota_hint, 0, 774);
+    lv_obj_t *hint = add_label(p, L()->ota_hint, 0, 878);
     lv_obj_set_style_text_font(hint, UIFONT(&font_pl_14, &font_pl_8), 0);
-    int nety = 822;
+    int nety = 926;
 #endif
 
     char netbuf[120] = "";
