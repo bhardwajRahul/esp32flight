@@ -519,9 +519,41 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
         len = sink->len;
     }
 
+    /* Decode in the PNG's native format: OSM basemap tiles are almost
+     * always 8-bit palette, which decodes into 64 KB instead of 256 KB
+     * RGBA and skips the conversion pass entirely - the RGBA blow-up is
+     * what fragmented PSRAM on the route-map view (decode OOM with a
+     * ~320 KB largest block) and made tiles go missing. */
     unsigned char *rgba = NULL;
     unsigned w = 0, h = 0;
-    unsigned lret = lodepng_decode32(&rgba, &w, &h, fetch_buf, len);
+    LodePNGState pngst;
+    lodepng_state_init(&pngst);
+    pngst.decoder.color_convert = 0;
+    unsigned lret = lodepng_decode(&rgba, &w, &h, &pngst, fetch_buf, len);
+    int bpp = 4;
+    const unsigned char *pal = NULL;
+    size_t paln = 0;
+    if (lret == 0) {
+        const LodePNGColorMode *cm = &pngst.info_png.color;
+        if (cm->colortype == LCT_PALETTE && cm->bitdepth == 8) {
+            bpp = 1;
+            pal = cm->palette;
+            paln = cm->palettesize;
+        } else if (cm->colortype == LCT_RGB && cm->bitdepth == 8) {
+            bpp = 3;
+        } else if (cm->colortype == LCT_RGBA && cm->bitdepth == 8) {
+            bpp = 4;
+        } else {
+            /* odd format (16-bit, sub-byte palette, grey): take the
+             * classic converted path, those tiles are rare and small */
+            free(rgba);
+            rgba = NULL;
+            lodepng_state_cleanup(&pngst);
+            lodepng_state_init(&pngst);
+            lret = lodepng_decode32(&rgba, &w, &h, fetch_buf, len);
+            bpp = 4;
+        }
+    }
     if (lret == 83) {
         /* lodepng alloc failure: PSRAM too fragmented for the 256 KB RGBA
          * buffer (big view buffers eat the headroom on the route map).
@@ -535,12 +567,28 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
         rgba = NULL;
         w = h = 0;
         tcache_drop_all_except(key);
-        lret = lodepng_decode32(&rgba, &w, &h, fetch_buf, len);
+        lodepng_state_cleanup(&pngst);
+        lodepng_state_init(&pngst);
+        pngst.decoder.color_convert = 0;
+        lret = lodepng_decode(&rgba, &w, &h, &pngst, fetch_buf, len);
+        const LodePNGColorMode *cm2 = &pngst.info_png.color;
+        if (lret == 0 && cm2->colortype == LCT_PALETTE && cm2->bitdepth == 8) {
+            bpp = 1;
+            pal = cm2->palette;
+            paln = cm2->palettesize;
+        } else if (lret == 0 && cm2->colortype == LCT_RGB && cm2->bitdepth == 8) {
+            bpp = 3;
+        } else if (lret == 0 && cm2->colortype == LCT_RGBA && cm2->bitdepth == 8) {
+            bpp = 4;
+        } else if (lret == 0) {
+            lret = 82;   /* unusual format under OOM: give up this pass */
+        }
         if (lret != 0 || rgba == NULL) {
             /* still no room: let this render pass go without the tile,
              * the periodic retry picks it up once buffers settle */
             free(rgba);
             free(flash_buf);
+            lodepng_state_cleanup(&pngst);
             return false;
         }
     } else if (lret != 0 || rgba == NULL) {
@@ -548,6 +596,7 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
                  lret, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         free(rgba);   /* lodepng may allocate even when it reports an error */
         free(flash_buf);
+        lodepng_state_cleanup(&pngst);
         if (!from_cache) {
             return false;   /* fresh network data undecodable: give up */
         }
@@ -571,10 +620,17 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
         if (dy < 0 || dy >= dst_h) {
             continue;
         }
-        const unsigned char *src = rgba + (size_t)y * w * 4;
+        const unsigned char *src = rgba + (size_t)y * w * bpp;
         for (int x = x0; x < x1; x++) {
-            const unsigned char *p = src + x * 4;
-            int r = p[0], g = p[1], b = p[2];
+            int r, g, b;
+            if (bpp == 1) {
+                unsigned idx = src[x];
+                const unsigned char *p = idx < paln ? pal + idx * 4 : pal;
+                r = p[0]; g = p[1]; b = p[2];
+            } else {
+                const unsigned char *p = src + x * bpp;
+                r = p[0]; g = p[1]; b = p[2];
+            }
             if (darken) {
                 /* OSM serves a light map; the dark style is made here:
                  * luminance inverted into a 16..128 band with a slight
@@ -594,6 +650,7 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
     }
     free(rgba);
     free(flash_buf);
+    lodepng_state_cleanup(&pngst);
     return true;
     }
     return false;
