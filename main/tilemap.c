@@ -469,6 +469,11 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
                       uint16_t *dst, int dst_w, int dst_h,
                       int z, int tx, int ty, int ox, int oy)
 {
+    /* One tick between tiles keeps IDLE0 fed: OSM tiles decode 3-10x
+     * longer than the old CARTO ones, and a full-screen render used to
+     * starve the task watchdog mid-pass (visible shake, and a crash on
+     * the 7B where the pass is longest). */
+    vTaskDelay(1);
     uint32_t key = ((uint32_t)z << 26) | ((uint32_t)tx << 13) | (uint32_t)ty;
     for (int attempt = 0; attempt < 2; attempt++) {
     uint32_t clen = 0;
@@ -555,6 +560,9 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
     }
 
     const bool light = settings_get()->map_light;
+    /* hoisted: calling tile_source_is_osm() per pixel multiplied the
+     * per-tile cost on every render (0.4.6 regression) */
+    const bool darken = !light && tile_source_is_osm();
     /* clip the x-range once per tile instead of testing every pixel */
     int x0 = ox < 0 ? -ox : 0;
     int x1 = ox + (int)w > dst_w ? dst_w - ox : (int)w;
@@ -567,7 +575,7 @@ static bool blit_tile(esp_http_client_handle_t client, tile_sink_t *sink,
         for (int x = x0; x < x1; x++) {
             const unsigned char *p = src + x * 4;
             int r = p[0], g = p[1], b = p[2];
-            if (!light && tile_source_is_osm()) {
+            if (darken) {
                 /* OSM serves a light map; the dark style is made here:
                  * luminance inverted into a 16..128 band with a slight
                  * blue cast (land goes near-black, labels and borders
@@ -603,6 +611,7 @@ static void blit_rain_tile(esp_http_client_handle_t client, tile_sink_t *sink,
                            const char *frame, uint16_t *dst, int dst_w, int dst_h,
                            int z, int tx, int ty, int ox, int oy)
 {
+    vTaskDelay(1);   /* same watchdog courtesy as blit_tile */
     int shift = z > RAIN_MAX_Z ? z - RAIN_MAX_Z : 0;
     int zc = z - shift;
     int ptx = tx >> shift;
